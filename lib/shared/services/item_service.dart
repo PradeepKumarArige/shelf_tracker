@@ -47,6 +47,20 @@ class ItemService extends ChangeNotifier {
     return filtered;
   }
 
+  Future<bool> _ensureUserInitialized() async {
+    if (_userId != null) return true;
+
+    try {
+      final user = await _userRepo.createOrGetDefaultUser();
+      _userId = user.id;
+      _error = null;
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      return false;
+    }
+  }
+
   Future<void> initialize() async {
     _isLoading = true;
     notifyListeners();
@@ -91,7 +105,9 @@ class ItemService extends ChangeNotifier {
   }
 
   Future<String?> addItem(ItemModel item) async {
-    if (_userId == null) return 'User not initialized';
+    if (!await _ensureUserInitialized()) {
+      return _error ?? 'User not initialized';
+    }
 
     try {
       await _itemRepo.insertItem(item, _userId!);
@@ -103,7 +119,9 @@ class ItemService extends ChangeNotifier {
   }
 
   Future<String?> updateItem(ItemModel item) async {
-    if (_userId == null) return 'User not initialized';
+    if (!await _ensureUserInitialized()) {
+      return _error ?? 'User not initialized';
+    }
 
     try {
       await _itemRepo.updateItem(item, _userId!);
@@ -115,7 +133,9 @@ class ItemService extends ChangeNotifier {
   }
 
   Future<String?> deleteItem(String itemId) async {
-    if (_userId == null) return 'User not initialized';
+    if (!await _ensureUserInitialized()) {
+      return _error ?? 'User not initialized';
+    }
 
     try {
       await _itemRepo.deleteItem(itemId, _userId!);
@@ -127,7 +147,9 @@ class ItemService extends ChangeNotifier {
   }
 
   Future<String?> markAsUsed(String itemId) async {
-    if (_userId == null) return 'User not initialized';
+    if (!await _ensureUserInitialized()) {
+      return _error ?? 'User not initialized';
+    }
 
     try {
       await _itemRepo.markAsUsed(itemId, _userId!);
@@ -143,7 +165,7 @@ class ItemService extends ChangeNotifier {
   }
 
   Future<List<ItemModel>> searchItems(String query) async {
-    if (_userId == null) return [];
+    if (!await _ensureUserInitialized()) return [];
     return await _itemRepo.searchItems(_userId!, query);
   }
 }

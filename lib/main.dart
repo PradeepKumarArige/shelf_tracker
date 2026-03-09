@@ -70,7 +70,9 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
-    _initializeServices();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeServices();
+    });
   }
 
   Future<void> _initializeServices() async {
