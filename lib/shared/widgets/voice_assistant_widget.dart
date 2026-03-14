@@ -103,11 +103,16 @@ class _VoiceAssistantOverlayState extends State<VoiceAssistantOverlay>
           scale: _scaleAnimation,
           child: Consumer<VoiceAssistantService>(
             builder: (context, voiceService, child) {
-              if (voiceService.lastCommand != null) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  widget.onCommand(voiceService.lastCommand!);
-                  voiceService.clearCommand();
-                });
+              final lastCommand = voiceService.lastCommand;
+              if (lastCommand != null) {
+                final isRetryCommand = lastCommand.type == 'no_speech' || 
+                                       lastCommand.type == 'timeout';
+                if (!isRetryCommand) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    widget.onCommand(lastCommand);
+                    voiceService.clearCommand();
+                  });
+                }
               }
 
               return Column(
