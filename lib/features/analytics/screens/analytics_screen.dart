@@ -69,7 +69,7 @@ class AnalyticsScreen extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.4,
+      childAspectRatio: 1.5,
       children: [
         StatCard(
           title: 'Total Items',
@@ -218,17 +218,13 @@ class AnalyticsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            Wrap(
+              spacing: 16,
+              runSpacing: 10,
+              alignment: WrapAlignment.center,
               children: [
                 _buildLegendItem('Food ($foodCount)', isDark ? AppColors.foodDark : AppColors.foodLight),
                 _buildLegendItem('Grocery ($groceryCount)', isDark ? AppColors.groceryDark : AppColors.groceryLight),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
                 _buildLegendItem('Medicine ($medicineCount)', isDark ? AppColors.medicineDark : AppColors.medicineLight),
                 _buildLegendItem('Cosmetics ($cosmeticsCount)', isDark ? AppColors.cosmeticsDark : AppColors.cosmeticsLight),
               ],
@@ -240,26 +236,32 @@ class AnalyticsScreen extends StatelessWidget {
   }
 
   Widget _buildLegendItem(String label, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3),
+    return Container(
+      constraints: const BoxConstraints(minWidth: 100),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(3),
+            ),
           ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
