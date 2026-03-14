@@ -102,16 +102,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: () async {
-              await Navigator.of(context).pushNamed('/add-item');
-              if (mounted) {
-                itemService.loadItems();
-              }
-            },
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Add Item'),
-          ),
         );
       },
     );
@@ -327,15 +317,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await Navigator.of(context).pushNamed('/add-item');
-          if (mounted) {
-            itemService.loadItems();
-          }
-        },
-        child: const Icon(Icons.add_rounded),
       ),
     );
   }

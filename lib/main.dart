@@ -177,20 +177,38 @@ class _MainNavigationState extends State<MainNavigation> {
               ),
             ],
           ),
-          floatingActionButton: Consumer<VoiceAssistantService>(
-            builder: (context, voiceService, child) {
-              return FloatingActionButton(
-                heroTag: 'voice_assistant',
-                onPressed: () => setState(() => _showVoiceOverlay = true),
-                backgroundColor: voiceService.isListening
-                    ? Colors.red
-                    : Theme.of(context).colorScheme.primary,
-                child: Icon(
-                  voiceService.isListening ? Icons.mic : Icons.mic_none,
-                  color: Colors.white,
-                ),
-              );
-            },
+          floatingActionButton: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Consumer<VoiceAssistantService>(
+                builder: (context, voiceService, child) {
+                  return FloatingActionButton.small(
+                    heroTag: 'voice_assistant',
+                    onPressed: () => setState(() => _showVoiceOverlay = true),
+                    backgroundColor: voiceService.isListening
+                        ? Colors.red
+                        : Theme.of(context).colorScheme.secondary,
+                    child: Icon(
+                      voiceService.isListening ? Icons.mic : Icons.mic_none,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              FloatingActionButton.extended(
+                heroTag: 'add_item',
+                onPressed: () async {
+                  await Navigator.of(context).pushNamed('/add-item');
+                  if (mounted) {
+                    context.read<ItemService>().loadItems();
+                  }
+                },
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Add Item'),
+              ),
+            ],
           ),
         ),
         if (_showVoiceOverlay)
