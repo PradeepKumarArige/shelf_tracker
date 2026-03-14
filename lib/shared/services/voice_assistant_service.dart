@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 enum VoiceAssistantState {
   idle,
@@ -9,6 +10,7 @@ enum VoiceAssistantState {
   processing,
   speaking,
   error,
+  permissionDenied,
 }
 
 class VoiceCommand {
@@ -26,6 +28,7 @@ class VoiceAssistantService extends ChangeNotifier {
   String _lastWords = '';
   String _errorMessage = '';
   bool _isAvailable = false;
+  bool _isInitialized = false;
   VoiceCommand? _lastCommand;
 
   VoiceAssistantState get state => _state;
@@ -36,6 +39,43 @@ class VoiceAssistantService extends ChangeNotifier {
   VoiceCommand? get lastCommand => _lastCommand;
 
   Future<void> initialize() async {
+    if (_isInitialized) return;
+    
+    try {
+      await _initializeTts();
+      _isInitialized = true;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to initialize text-to-speech: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<bool> _requestPermissions() async {
+    final micStatus = await Permission.microphone.status;
+    
+    if (micStatus.isGranted) {
+      return true;
+    }
+    
+    if (micStatus.isDenied) {
+      final result = await Permission.microphone.request();
+      return result.isGranted;
+    }
+    
+    if (micStatus.isPermanentlyDenied) {
+      _errorMessage = 'Microphone permission permanently denied. Please enable it in Settings.';
+      _state = VoiceAssistantState.permissionDenied;
+      notifyListeners();
+      return false;
+    }
+    
+    return false;
+  }
+
+  Future<bool> _initializeSpeechRecognition() async {
+    if (_isAvailable) return true;
+    
     try {
       _isAvailable = await _speechToText.initialize(
         onError: (error) {
@@ -51,13 +91,16 @@ class VoiceAssistantService extends ChangeNotifier {
           }
         },
       );
-
-      await _initializeTts();
-      notifyListeners();
+      
+      if (!_isAvailable) {
+        _errorMessage = 'Speech recognition not supported on this device';
+      }
+      
+      return _isAvailable;
     } catch (e) {
-      _errorMessage = 'Failed to initialize voice assistant: $e';
+      _errorMessage = 'Failed to initialize speech recognition: $e';
       _isAvailable = false;
-      notifyListeners();
+      return false;
     }
   }
 
@@ -85,8 +128,20 @@ class VoiceAssistantService extends ChangeNotifier {
   }
 
   Future<void> startListening() async {
-    if (!_isAvailable) {
-      _errorMessage = 'Voice recognition not available';
+    _errorMessage = '';
+    
+    final hasPermission = await _requestPermissions();
+    if (!hasPermission) {
+      if (_state != VoiceAssistantState.permissionDenied) {
+        _errorMessage = 'Microphone permission required for voice commands';
+        _state = VoiceAssistantState.error;
+      }
+      notifyListeners();
+      return;
+    }
+
+    final initialized = await _initializeSpeechRecognition();
+    if (!initialized) {
       _state = VoiceAssistantState.error;
       notifyListeners();
       return;
@@ -97,14 +152,24 @@ class VoiceAssistantService extends ChangeNotifier {
     _state = VoiceAssistantState.listening;
     notifyListeners();
 
-    await _speechToText.listen(
-      onResult: _onSpeechResult,
-      listenFor: const Duration(seconds: 10),
-      pauseFor: const Duration(seconds: 3),
-      localeId: 'en_US',
-      cancelOnError: true,
-      partialResults: true,
-    );
+    try {
+      await _speechToText.listen(
+        onResult: _onSpeechResult,
+        listenFor: const Duration(seconds: 10),
+        pauseFor: const Duration(seconds: 3),
+        localeId: 'en_US',
+        cancelOnError: true,
+        partialResults: true,
+      );
+    } catch (e) {
+      _errorMessage = 'Failed to start listening: $e';
+      _state = VoiceAssistantState.error;
+      notifyListeners();
+    }
+  }
+
+  Future<void> openSettings() async {
+    await openAppSettings();
   }
 
   Future<void> stopListening() async {

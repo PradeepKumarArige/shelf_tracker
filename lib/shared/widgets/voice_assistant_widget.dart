@@ -154,7 +154,8 @@ class _VoiceAssistantOverlayState extends State<VoiceAssistantOverlay>
                         const SizedBox(height: 24),
                         _buildStatusText(voiceService, theme),
                         const SizedBox(height: 16),
-                        if (voiceService.state == VoiceAssistantState.error)
+                        if (voiceService.state == VoiceAssistantState.error ||
+                            voiceService.state == VoiceAssistantState.permissionDenied)
                           _buildErrorWidget(voiceService, theme)
                         else if (voiceService.lastWords.isEmpty &&
                             voiceService.state == VoiceAssistantState.idle)
@@ -263,6 +264,9 @@ class _VoiceAssistantOverlayState extends State<VoiceAssistantOverlay>
       case VoiceAssistantState.error:
         statusText = 'Error occurred';
         break;
+      case VoiceAssistantState.permissionDenied:
+        statusText = 'Microphone permission required';
+        break;
       default:
         statusText = voiceService.lastWords.isEmpty
             ? 'Tap the microphone and speak'
@@ -284,6 +288,8 @@ class _VoiceAssistantOverlayState extends State<VoiceAssistantOverlay>
   }
 
   Widget _buildErrorWidget(VoiceAssistantService voiceService, ThemeData theme) {
+    final isPermissionDenied = voiceService.state == VoiceAssistantState.permissionDenied;
+    
     return Column(
       children: [
         Container(
@@ -294,7 +300,11 @@ class _VoiceAssistantOverlayState extends State<VoiceAssistantOverlay>
           ),
           child: Row(
             children: [
-              Icon(Icons.error_outline, color: AppColors.expiredLight, size: 20),
+              Icon(
+                isPermissionDenied ? Icons.mic_off : Icons.error_outline,
+                color: AppColors.expiredLight,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -308,13 +318,20 @@ class _VoiceAssistantOverlayState extends State<VoiceAssistantOverlay>
           ),
         ),
         const SizedBox(height: 12),
-        TextButton(
-          onPressed: () {
-            voiceService.clearError();
-            voiceService.startListening();
-          },
-          child: const Text('Try Again'),
-        ),
+        if (isPermissionDenied)
+          ElevatedButton.icon(
+            onPressed: () => voiceService.openSettings(),
+            icon: const Icon(Icons.settings, size: 18),
+            label: const Text('Open Settings'),
+          )
+        else
+          TextButton(
+            onPressed: () {
+              voiceService.clearError();
+              voiceService.startListening();
+            },
+            child: const Text('Try Again'),
+          ),
       ],
     );
   }
