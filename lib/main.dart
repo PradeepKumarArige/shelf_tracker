@@ -232,7 +232,10 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
         if (_showVoiceOverlay)
           VoiceAssistantOverlay(
-            onClose: () => setState(() => _showVoiceOverlay = false),
+            onClose: () {
+              context.read<VoiceAssistantService>().clearCommand();
+              setState(() => _showVoiceOverlay = false);
+            },
             onCommand: (command) {
               setState(() => _showVoiceOverlay = false);
               _handleVoiceCommand(command);

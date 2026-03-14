@@ -104,9 +104,9 @@ class VoiceAssistantService extends ChangeNotifier {
 
   Future<void> _initializeTts() async {
     await _flutterTts.setLanguage('en-US');
-    await _flutterTts.setSpeechRate(0.5);
-    await _flutterTts.setVolume(1.0);
-    await _flutterTts.setPitch(1.0);
+    await _flutterTts.setSpeechRate(0.45);
+    await _flutterTts.setVolume(0.7);
+    await _flutterTts.setPitch(1.05);
 
     _flutterTts.setStartHandler(() {
       _state = VoiceAssistantState.speaking;

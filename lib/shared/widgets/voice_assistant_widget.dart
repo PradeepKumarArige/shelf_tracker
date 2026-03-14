@@ -82,6 +82,8 @@ class _VoiceAssistantOverlayState extends State<VoiceAssistantOverlay>
 
   void _startListening() {
     final voiceService = context.read<VoiceAssistantService>();
+    voiceService.clearCommand();
+    voiceService.clearError();
     voiceService.startListening();
   }
 
