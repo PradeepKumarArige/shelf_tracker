@@ -190,6 +190,7 @@ class _VoiceAssistantOverlayState extends State<VoiceAssistantOverlay>
         } else if (isSpeaking) {
           voiceService.stopSpeaking();
         } else {
+          voiceService.clearCommand();
           voiceService.startListening();
         }
       },
