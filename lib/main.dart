@@ -98,7 +98,20 @@ class _MainNavigationState extends State<MainNavigation> {
     switch (command.type) {
       case 'add_item':
         voiceService.speak('Opening add item screen');
-        Navigator.pushNamed(context, '/add-item');
+        Navigator.pushNamed(context, '/add-item', arguments: null);
+        break;
+      case 'add_item_voice':
+        final itemName = command.data['name'] as String?;
+        if (itemName != null && itemName.isNotEmpty) {
+          voiceService.speak('Adding $itemName');
+          Navigator.pushNamed(context, '/add-item', arguments: Map<String, dynamic>.from(command.data));
+        } else if (command.data.isNotEmpty) {
+          voiceService.speak('Opening add item screen');
+          Navigator.pushNamed(context, '/add-item', arguments: Map<String, dynamic>.from(command.data));
+        } else {
+          voiceService.speak('Opening add item screen');
+          Navigator.pushNamed(context, '/add-item', arguments: null);
+        }
         break;
       case 'show_expiring':
         voiceService.speak('Showing items expiring soon');
@@ -136,6 +149,12 @@ class _MainNavigationState extends State<MainNavigation> {
         voiceService.speak(
           'You can say: Add item, Show expiring, Show analytics, Show deals, Go home, Show profile, or Search followed by an item name.',
         );
+        break;
+      case 'no_speech':
+        voiceService.speak("I didn't hear anything. Please tap the microphone and speak.");
+        break;
+      case 'timeout':
+        voiceService.speak("Listening timed out. Please try again.");
         break;
       default:
         voiceService.speak("Sorry, I didn't understand that command. Say help for available commands.");
@@ -200,7 +219,7 @@ class _MainNavigationState extends State<MainNavigation> {
               FloatingActionButton.extended(
                 heroTag: 'add_item',
                 onPressed: () async {
-                  await Navigator.of(context).pushNamed('/add-item');
+                  await Navigator.of(context).pushNamed('/add-item', arguments: null);
                   if (mounted) {
                     context.read<ItemService>().loadItems();
                   }

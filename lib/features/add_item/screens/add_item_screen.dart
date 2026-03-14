@@ -26,6 +26,83 @@ class _AddItemScreenState extends State<AddItemScreen> {
   DateTime _expiryDate = DateTime.now().add(const Duration(days: 7));
   int _quantity = 1;
   bool _isSaving = false;
+  bool _isVoiceInput = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetForm();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _processVoiceArguments();
+    });
+  }
+
+  void _resetForm() {
+    _nameController.clear();
+    _locationController.clear();
+    _notesController.clear();
+    _selectedCategory = ItemCategory.food;
+    _purchaseDate = DateTime.now();
+    _expiryDate = DateTime.now().add(const Duration(days: 7));
+    _quantity = 1;
+    _isVoiceInput = false;
+  }
+
+  void _processVoiceArguments() {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args == null || args is! Map<String, dynamic> || args.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isVoiceInput = true;
+      
+      if (args['name'] != null) {
+        _nameController.text = args['name'] as String;
+      }
+      
+      if (args['category'] != null) {
+        final categoryStr = args['category'] as String;
+        switch (categoryStr.toLowerCase()) {
+          case 'food':
+            _selectedCategory = ItemCategory.food;
+            break;
+          case 'grocery':
+            _selectedCategory = ItemCategory.grocery;
+            break;
+          case 'medicine':
+            _selectedCategory = ItemCategory.medicine;
+            break;
+          case 'cosmetics':
+            _selectedCategory = ItemCategory.cosmetics;
+            break;
+        }
+      }
+      
+      if (args['expiryDays'] != null) {
+        final days = args['expiryDays'] as int;
+        _expiryDate = DateTime.now().add(Duration(days: days));
+      }
+      
+      if (args['quantity'] != null) {
+        _quantity = args['quantity'] as int;
+      }
+      
+      if (args['location'] != null) {
+        _locationController.text = args['location'] as String;
+      }
+    });
+
+    if (_nameController.text.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Voice input: "${_nameController.text}" - Review and save'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Theme.of(context).colorScheme.primary,
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {

@@ -249,28 +249,36 @@ class _VoiceAssistantOverlayState extends State<VoiceAssistantOverlay>
 
   Widget _buildStatusText(VoiceAssistantService voiceService, ThemeData theme) {
     String statusText;
-    switch (voiceService.state) {
-      case VoiceAssistantState.listening:
-        statusText = voiceService.lastWords.isEmpty
-            ? 'Listening...'
-            : '"${voiceService.lastWords}"';
-        break;
-      case VoiceAssistantState.processing:
-        statusText = 'Processing...';
-        break;
-      case VoiceAssistantState.speaking:
-        statusText = 'Speaking...';
-        break;
-      case VoiceAssistantState.error:
-        statusText = 'Error occurred';
-        break;
-      case VoiceAssistantState.permissionDenied:
-        statusText = 'Microphone permission required';
-        break;
-      default:
-        statusText = voiceService.lastWords.isEmpty
-            ? 'Tap the microphone and speak'
-            : '"${voiceService.lastWords}"';
+    final lastCommand = voiceService.lastCommand;
+    
+    if (lastCommand?.type == 'no_speech') {
+      statusText = "I didn't hear anything.\nTap the mic and try again.";
+    } else if (lastCommand?.type == 'timeout') {
+      statusText = "Listening timed out.\nTap the mic to try again.";
+    } else {
+      switch (voiceService.state) {
+        case VoiceAssistantState.listening:
+          statusText = voiceService.lastWords.isEmpty
+              ? 'Listening...'
+              : '"${voiceService.lastWords}"';
+          break;
+        case VoiceAssistantState.processing:
+          statusText = 'Processing...';
+          break;
+        case VoiceAssistantState.speaking:
+          statusText = 'Speaking...';
+          break;
+        case VoiceAssistantState.error:
+          statusText = 'Error occurred';
+          break;
+        case VoiceAssistantState.permissionDenied:
+          statusText = 'Microphone permission required';
+          break;
+        default:
+          statusText = voiceService.lastWords.isEmpty
+              ? 'Tap the microphone and speak'
+              : '"${voiceService.lastWords}"';
+      }
     }
 
     return Container(

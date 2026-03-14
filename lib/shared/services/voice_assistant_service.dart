@@ -79,9 +79,7 @@ class VoiceAssistantService extends ChangeNotifier {
     try {
       _isAvailable = await _speechToText.initialize(
         onError: (error) {
-          _errorMessage = error.errorMsg;
-          _state = VoiceAssistantState.error;
-          notifyListeners();
+          _handleSpeechError(error.errorMsg);
         },
         onStatus: (status) {
           if (status == 'done' || status == 'notListening') {
@@ -200,8 +198,14 @@ class VoiceAssistantService extends ChangeNotifier {
     final words = _lastWords.toLowerCase().trim();
     VoiceCommand? command;
 
-    if (_matchesCommand(words, ['add item', 'add new item', 'new item', 'add product'])) {
+    if (_matchesCommand(words, ['add item', 'add new item', 'new item', 'add product']) && 
+        !_hasItemDetails(words)) {
       command = VoiceCommand(type: 'add_item');
+    } else if (_startsWithAddCommand(words)) {
+      final itemData = _parseAddItemCommand(words);
+      if (itemData != null) {
+        command = VoiceCommand(type: 'add_item_voice', data: itemData);
+      }
     } else if (_matchesCommand(words, ['show expiring', 'expiring soon', 'what is expiring', "what's expiring"])) {
       command = VoiceCommand(type: 'show_expiring');
     } else if (_matchesCommand(words, ['show expired', 'expired items', 'what has expired', "what's expired"])) {
@@ -230,6 +234,46 @@ class VoiceAssistantService extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _handleSpeechError(String errorMsg) {
+    final errorLower = errorMsg.toLowerCase();
+    
+    if (errorLower.contains('no_match') || errorLower.contains('no match')) {
+      _lastWords = '';
+      _errorMessage = '';
+      _state = VoiceAssistantState.idle;
+      _lastCommand = VoiceCommand(type: 'no_speech');
+      notifyListeners();
+      return;
+    }
+    
+    if (errorLower.contains('speech_timeout') || errorLower.contains('timeout')) {
+      _lastWords = '';
+      _errorMessage = '';
+      _state = VoiceAssistantState.idle;
+      _lastCommand = VoiceCommand(type: 'timeout');
+      notifyListeners();
+      return;
+    }
+    
+    if (errorLower.contains('network')) {
+      _errorMessage = 'Network error. Please check your connection.';
+      _state = VoiceAssistantState.error;
+      notifyListeners();
+      return;
+    }
+    
+    if (errorLower.contains('busy') || errorLower.contains('unavailable')) {
+      _errorMessage = 'Voice service busy. Please try again.';
+      _state = VoiceAssistantState.error;
+      notifyListeners();
+      return;
+    }
+    
+    _errorMessage = errorMsg;
+    _state = VoiceAssistantState.error;
+    notifyListeners();
+  }
+
   bool _matchesCommand(String input, List<String> patterns) {
     for (final pattern in patterns) {
       if (input.contains(pattern)) {
@@ -237,6 +281,193 @@ class VoiceAssistantService extends ChangeNotifier {
       }
     }
     return false;
+  }
+
+  bool _hasItemDetails(String input) {
+    final addPrefixes = ['add item ', 'add new item ', 'new item ', 'add product ', 'add '];
+    for (final prefix in addPrefixes) {
+      if (input.startsWith(prefix)) {
+        final remainder = input.substring(prefix.length).trim();
+        if (remainder.isNotEmpty && !_matchesCommand(remainder, ['item', 'new', 'product'])) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool _startsWithAddCommand(String input) {
+    return input.startsWith('add ');
+  }
+
+  Map<String, dynamic>? _parseAddItemCommand(String input) {
+    String text = input
+        .replaceFirst(RegExp(r'^add (new )?(item |product )?'), '')
+        .trim();
+    
+    if (text.isEmpty) return null;
+
+    final result = <String, dynamic>{};
+    
+    String? category = _extractCategory(text);
+    if (category != null) {
+      result['category'] = category;
+      text = _removeCategoryFromText(text, category);
+    }
+    
+    final expiryData = _extractExpiryInfo(text);
+    if (expiryData != null) {
+      result['expiryDays'] = expiryData['days'];
+      text = expiryData['remainingText'] as String;
+    }
+    
+    final quantity = _extractQuantity(text);
+    if (quantity != null) {
+      result['quantity'] = quantity['quantity'];
+      text = quantity['remainingText'] as String;
+    }
+    
+    final location = _extractLocation(text);
+    if (location != null) {
+      result['location'] = location['location'];
+      text = location['remainingText'] as String;
+    }
+    
+    text = text.trim();
+    if (text.isNotEmpty) {
+      result['name'] = _capitalizeWords(text);
+    }
+    
+    return result.isEmpty ? null : result;
+  }
+
+  String? _extractCategory(String text) {
+    final categories = {
+      'food': ['food', 'food category', 'food item'],
+      'grocery': ['grocery', 'grocery category', 'groceries'],
+      'medicine': ['medicine', 'medicine category', 'medical', 'medication'],
+      'cosmetics': ['cosmetics', 'cosmetic', 'cosmetics category', 'beauty'],
+    };
+    
+    for (final entry in categories.entries) {
+      for (final keyword in entry.value) {
+        if (text.contains(keyword)) {
+          return entry.key;
+        }
+      }
+    }
+    return null;
+  }
+
+  String _removeCategoryFromText(String text, String category) {
+    final patterns = [
+      '$category category',
+      'category $category',
+      category,
+      'food item',
+      'groceries',
+      'medical',
+      'medication',
+      'beauty',
+      'cosmetic',
+    ];
+    
+    for (final pattern in patterns) {
+      text = text.replaceAll(pattern, '');
+    }
+    return text.trim();
+  }
+
+  Map<String, dynamic>? _extractExpiryInfo(String text) {
+    final patterns = [
+      RegExp(r'expir(?:ing|es?) in (\d+) days?'),
+      RegExp(r'expires? (\d+) days?'),
+      RegExp(r'(\d+) days? (?:until )?expir'),
+      RegExp(r'expir(?:ing|es?) tomorrow'),
+      RegExp(r'expir(?:ing|es?) today'),
+      RegExp(r'expir(?:ing|es?) in (\d+) weeks?'),
+      RegExp(r'expir(?:ing|es?) in (\d+) months?'),
+    ];
+    
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(text);
+      if (match != null) {
+        int days = 7;
+        
+        if (text.contains('tomorrow')) {
+          days = 1;
+        } else if (text.contains('today')) {
+          days = 0;
+        } else if (match.groupCount >= 1) {
+          final number = int.tryParse(match.group(1) ?? '');
+          if (number != null) {
+            if (text.contains('week')) {
+              days = number * 7;
+            } else if (text.contains('month')) {
+              days = number * 30;
+            } else {
+              days = number;
+            }
+          }
+        }
+        
+        return {
+          'days': days,
+          'remainingText': text.replaceAll(match.group(0)!, '').trim(),
+        };
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _extractQuantity(String text) {
+    final patterns = [
+      RegExp(r'quantity (\d+)'),
+      RegExp(r'(\d+) (?:pieces?|items?|units?)'),
+      RegExp(r'(\d+) of'),
+    ];
+    
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(text);
+      if (match != null && match.groupCount >= 1) {
+        final quantity = int.tryParse(match.group(1) ?? '');
+        if (quantity != null && quantity > 0) {
+          return {
+            'quantity': quantity,
+            'remainingText': text.replaceAll(match.group(0)!, '').trim(),
+          };
+        }
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _extractLocation(String text) {
+    final patterns = [
+      RegExp(r'(?:in|at|store in|stored in) (?:the )?(refrigerator|fridge|freezer|pantry|cabinet|shelf|drawer|kitchen|bathroom)'),
+      RegExp(r'location (refrigerator|fridge|freezer|pantry|cabinet|shelf|drawer|kitchen|bathroom)'),
+    ];
+    
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(text);
+      if (match != null && match.groupCount >= 1) {
+        String location = match.group(1) ?? '';
+        if (location == 'fridge') location = 'Refrigerator';
+        return {
+          'location': _capitalizeWords(location),
+          'remainingText': text.replaceAll(match.group(0)!, '').trim(),
+        };
+      }
+    }
+    return null;
+  }
+
+  String _capitalizeWords(String text) {
+    if (text.isEmpty) return text;
+    return text.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
   }
 
   Future<void> speak(String text) async {
@@ -270,7 +501,11 @@ class VoiceAssistantService extends ChangeNotifier {
   String getHelpText() {
     return '''
 You can say:
-• "Add item" - Add a new item
+• "Add item" - Open add item screen
+• "Add [item name]" - Quick add item
+• "Add milk expiring in 5 days"
+• "Add eggs food category"
+• "Add aspirin medicine in refrigerator"
 • "Show expiring" - View items expiring soon
 • "Show expired" - View expired items
 • "Show analytics" - View analytics
