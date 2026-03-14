@@ -61,6 +61,7 @@ class _VoiceAssistantOverlayState extends State<VoiceAssistantOverlay>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
+  bool _isSessionStarted = false;
 
   @override
   void initState() {
@@ -84,6 +85,7 @@ class _VoiceAssistantOverlayState extends State<VoiceAssistantOverlay>
     final voiceService = context.read<VoiceAssistantService>();
     voiceService.clearCommand();
     voiceService.clearError();
+    _isSessionStarted = true;
     voiceService.startListening();
   }
 
@@ -106,7 +108,7 @@ class _VoiceAssistantOverlayState extends State<VoiceAssistantOverlay>
           child: Consumer<VoiceAssistantService>(
             builder: (context, voiceService, child) {
               final lastCommand = voiceService.lastCommand;
-              if (lastCommand != null) {
+              if (_isSessionStarted && lastCommand != null) {
                 final isRetryCommand = lastCommand.type == 'no_speech' || 
                                        lastCommand.type == 'timeout';
                 if (!isRetryCommand) {
