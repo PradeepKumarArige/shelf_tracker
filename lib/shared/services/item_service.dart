@@ -10,6 +10,7 @@ class ItemService extends ChangeNotifier {
   List<ItemModel> _items = [];
   List<ItemModel> _expiringSoon = [];
   List<ItemModel> _expiredItems = [];
+  List<ItemModel> _deletedItems = [];
   Map<String, int> _categoryStats = {};
   Map<String, dynamic> _analyticsStats = {};
   bool _isLoading = false;
@@ -21,12 +22,14 @@ class ItemService extends ChangeNotifier {
   List<ItemModel> get items => _items;
   List<ItemModel> get expiringSoon => _expiringSoon;
   List<ItemModel> get expiredItems => _expiredItems;
+  List<ItemModel> get deletedItems => _deletedItems;
   Map<String, int> get categoryStats => _categoryStats;
   Map<String, dynamic> get analyticsStats => _analyticsStats;
   bool get isLoading => _isLoading;
   String? get error => _error;
   ItemCategory? get selectedCategory => _selectedCategory;
   String get searchQuery => _searchQuery;
+  int get deletedCount => _deletedItems.length;
 
   List<ItemModel> get filteredItems {
     var filtered = _items;
@@ -84,6 +87,7 @@ class ItemService extends ChangeNotifier {
       _items = await _itemRepo.getAllItems(_userId!);
       _expiringSoon = await _itemRepo.getExpiringSoon(_userId!);
       _expiredItems = await _itemRepo.getExpiredItems(_userId!);
+      _deletedItems = await _itemRepo.getDeletedItems(_userId!);
       _categoryStats = await _itemRepo.getCategoryStats(_userId!);
       _analyticsStats = await _itemRepo.getAnalyticsStats(_userId!);
       _error = null;
@@ -153,6 +157,48 @@ class ItemService extends ChangeNotifier {
 
     try {
       await _itemRepo.markAsUsed(itemId, _userId!);
+      await loadItems();
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> restoreItem(String itemId) async {
+    if (!await _ensureUserInitialized()) {
+      return _error ?? 'User not initialized';
+    }
+
+    try {
+      await _itemRepo.restoreItem(itemId, _userId!);
+      await loadItems();
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> permanentlyDeleteItem(String itemId) async {
+    if (!await _ensureUserInitialized()) {
+      return _error ?? 'User not initialized';
+    }
+
+    try {
+      await _itemRepo.permanentlyDeleteItem(itemId, _userId!);
+      await loadItems();
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> emptyTrash() async {
+    if (!await _ensureUserInitialized()) {
+      return _error ?? 'User not initialized';
+    }
+
+    try {
+      await _itemRepo.emptyTrash(_userId!);
       await loadItems();
       return null;
     } catch (e) {

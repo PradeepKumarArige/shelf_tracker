@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/services/theme_service.dart';
 import '../../../shared/services/user_service.dart';
+import '../../../shared/services/item_service.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -29,6 +30,8 @@ class ProfileScreen extends StatelessWidget {
                 _buildSettingsSection(context, themeService, userService),
                 const SizedBox(height: 24),
                 _buildNotificationSection(context, userService),
+                const SizedBox(height: 24),
+                _buildDataSection(context),
                 const SizedBox(height: 24),
                 _buildSupportSection(context),
               ],
@@ -224,6 +227,41 @@ class ProfileScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDataSection(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Consumer<ItemService>(
+      builder: (context, itemService, child) {
+        final deletedCount = itemService.deletedCount;
+        
+        return Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Data Management',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              _buildSettingsTile(
+                context,
+                icon: Icons.delete_outline_rounded,
+                title: 'Trash',
+                subtitle: deletedCount > 0 ? '$deletedCount items' : 'Empty',
+                onTap: () => Navigator.pushNamed(context, '/trash'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

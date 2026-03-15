@@ -10,7 +10,7 @@ class ItemRepository {
     final db = await _db.database;
     final results = await db.query(
       'items',
-      where: 'user_id = ? AND is_used = 0',
+      where: 'user_id = ? AND is_used = 0 AND is_deleted = 0',
       whereArgs: [userId],
       orderBy: 'expiry_date ASC',
     );
@@ -21,7 +21,7 @@ class ItemRepository {
     final db = await _db.database;
     final results = await db.query(
       'items',
-      where: 'user_id = ? AND category = ? AND is_used = 0',
+      where: 'user_id = ? AND category = ? AND is_used = 0 AND is_deleted = 0',
       whereArgs: [userId, category.index],
       orderBy: 'expiry_date ASC',
     );
@@ -35,7 +35,7 @@ class ItemRepository {
     
     final results = await db.query(
       'items',
-      where: 'user_id = ? AND is_used = 0 AND expiry_date >= ? AND expiry_date <= ?',
+      where: 'user_id = ? AND is_used = 0 AND is_deleted = 0 AND expiry_date >= ? AND expiry_date <= ?',
       whereArgs: [userId, now.toIso8601String(), futureDate.toIso8601String()],
       orderBy: 'expiry_date ASC',
     );
@@ -48,7 +48,7 @@ class ItemRepository {
     
     final results = await db.query(
       'items',
-      where: 'user_id = ? AND is_used = 0 AND expiry_date < ?',
+      where: 'user_id = ? AND is_used = 0 AND is_deleted = 0 AND expiry_date < ?',
       whereArgs: [userId, now.toIso8601String()],
       orderBy: 'expiry_date DESC',
     );
@@ -59,9 +59,20 @@ class ItemRepository {
     final db = await _db.database;
     final results = await db.query(
       'items',
-      where: 'user_id = ? AND is_used = 1',
+      where: 'user_id = ? AND is_used = 1 AND is_deleted = 0',
       whereArgs: [userId],
       orderBy: 'used_date DESC',
+    );
+    return results.map((map) => ItemModel.fromMap(_convertDbMap(map))).toList();
+  }
+
+  Future<List<ItemModel>> getDeletedItems(String userId) async {
+    final db = await _db.database;
+    final results = await db.query(
+      'items',
+      where: 'user_id = ? AND is_deleted = 1',
+      whereArgs: [userId],
+      orderBy: 'deleted_at DESC',
     );
     return results.map((map) => ItemModel.fromMap(_convertDbMap(map))).toList();
   }
@@ -162,6 +173,42 @@ class ItemRepository {
 
   Future<void> deleteItem(String itemId, String userId) async {
     final db = await _db.database;
+    final now = DateTime.now();
+    
+    await db.update(
+      'items',
+      {
+        'is_deleted': 1,
+        'deleted_at': now.toIso8601String(),
+        'updated_at': now.toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [itemId],
+    );
+
+    await _logHistory(db, itemId, userId, 'soft_deleted', null, {'deleted_at': now.toIso8601String()});
+  }
+
+  Future<void> restoreItem(String itemId, String userId) async {
+    final db = await _db.database;
+    final now = DateTime.now();
+    
+    await db.update(
+      'items',
+      {
+        'is_deleted': 0,
+        'deleted_at': null,
+        'updated_at': now.toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [itemId],
+    );
+
+    await _logHistory(db, itemId, userId, 'restored', null, {'restored_at': now.toIso8601String()});
+  }
+
+  Future<void> permanentlyDeleteItem(String itemId, String userId) async {
+    final db = await _db.database;
     final oldItem = await getItemById(itemId);
     
     await db.delete(
@@ -170,14 +217,26 @@ class ItemRepository {
       whereArgs: [itemId],
     );
 
-    await _logHistory(db, itemId, userId, 'deleted', oldItem?.toMap(), null);
+    await _logHistory(db, itemId, userId, 'permanently_deleted', oldItem?.toMap(), null);
+  }
+
+  Future<void> emptyTrash(String userId) async {
+    final db = await _db.database;
+    
+    await db.delete(
+      'items',
+      where: 'user_id = ? AND is_deleted = 1',
+      whereArgs: [userId],
+    );
+
+    await _logHistory(db, 'all', userId, 'trash_emptied', null, null);
   }
 
   Future<List<ItemModel>> searchItems(String userId, String query) async {
     final db = await _db.database;
     final results = await db.query(
       'items',
-      where: 'user_id = ? AND (name LIKE ? OR location LIKE ?)',
+      where: 'user_id = ? AND is_deleted = 0 AND (name LIKE ? OR location LIKE ?)',
       whereArgs: [userId, '%$query%', '%$query%'],
       orderBy: 'expiry_date ASC',
     );
@@ -189,7 +248,7 @@ class ItemRepository {
     final results = await db.rawQuery('''
       SELECT category, COUNT(*) as count 
       FROM items 
-      WHERE user_id = ? AND is_used = 0
+      WHERE user_id = ? AND is_used = 0 AND is_deleted = 0
       GROUP BY category
     ''', [userId]);
 
@@ -207,24 +266,30 @@ class ItemRepository {
     final monthStart = DateTime(now.year, now.month, 1);
     
     final totalItems = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM items WHERE user_id = ? AND is_used = 0',
+      'SELECT COUNT(*) as count FROM items WHERE user_id = ? AND is_used = 0 AND is_deleted = 0',
       [userId],
     );
 
     final usedThisMonth = await db.rawQuery('''
       SELECT COUNT(*) as count FROM items 
-      WHERE user_id = ? AND is_used = 1 AND used_date >= ?
+      WHERE user_id = ? AND is_used = 1 AND is_deleted = 0 AND used_date >= ?
     ''', [userId, monthStart.toIso8601String()]);
 
     final expiredThisMonth = await db.rawQuery('''
       SELECT COUNT(*) as count FROM items 
-      WHERE user_id = ? AND is_used = 0 AND expiry_date < ? AND expiry_date >= ?
+      WHERE user_id = ? AND is_used = 0 AND is_deleted = 0 AND expiry_date < ? AND expiry_date >= ?
     ''', [userId, now.toIso8601String(), monthStart.toIso8601String()]);
+
+    final deletedItems = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM items WHERE user_id = ? AND is_deleted = 1',
+      [userId],
+    );
 
     return {
       'total_items': (totalItems.first['count'] as int?) ?? 0,
       'used_this_month': (usedThisMonth.first['count'] as int?) ?? 0,
       'expired_this_month': (expiredThisMonth.first['count'] as int?) ?? 0,
+      'deleted_items': (deletedItems.first['count'] as int?) ?? 0,
     };
   }
 
@@ -258,6 +323,8 @@ class ItemRepository {
       'location': dbMap['location'],
       'notes': dbMap['notes'],
       'barcode': dbMap['barcode'],
+      'isDeleted': dbMap['is_deleted'] == 1,
+      'deletedAt': dbMap['deleted_at'],
       'createdAt': dbMap['created_at'],
       'updatedAt': dbMap['updated_at'],
     };

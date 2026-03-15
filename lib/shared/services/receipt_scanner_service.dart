@@ -127,28 +127,43 @@ class ReceiptScannerService extends ChangeNotifier {
     final Set<String> addedNames = {};
 
     final List<String> skipPatterns = [
-      'total', 'subtotal', 'tax', 'cash', 'card', 'change', 'balance',
-      'thank', 'receipt', 'date', 'time', 'store', 'address', 'phone',
-      'qty', 'price', 'amount', 'discount', 'savings', 'payment',
-      'visa', 'mastercard', 'debit', 'credit', 'transaction',
-      'welcome', 'visit', 'again', 'gst', 'cgst', 'sgst', 'igst',
-      'invoice', 'bill', 'no.', 'sr.', 'sl.', '#', 'mrp', 'rate',
+      'total', 'subtotal', 'sub total', 'grand total', 'net total',
+      'tax', 'vat', 'gst', 'cgst', 'sgst', 'igst', 'cess',
+      'cash', 'card', 'change', 'balance', 'tender', 'paid', 'due',
+      'thank', 'thanks', 'receipt', 'invoice', 'bill',
+      'date', 'time', 'store', 'shop', 'mart', 'address', 'phone', 'tel', 'mobile',
+      'qty', 'price', 'amount', 'discount', 'savings', 'save', 'offer',
+      'payment', 'mode', 'method',
+      'visa', 'mastercard', 'debit', 'credit', 'upi', 'paytm', 'gpay', 'phonepe',
+      'transaction', 'txn', 'ref', 'reference',
+      'welcome', 'visit', 'again', 'come', 'customer', 'member', 'loyalty',
+      'no.', 'sr.', 'sl.', 'sno', 's.no', 'item code', 'barcode', 'sku',
+      'mrp', 'rate', 'unit', 'per', 'each', 'pcs',
+      'cashier', 'counter', 'terminal', 'pos',
+      'return', 'refund', 'exchange', 'policy',
+      'gstin', 'tin', 'cin', 'fssai', 'lic',
+      'packed', 'mfg', 'exp', 'batch', 'lot',
+      'www', 'http', '.com', '.in', 'email',
+      'round', 'rounding', 'adjust',
     ];
 
     for (TextBlock block in recognizedText.blocks) {
       for (TextLine line in block.lines) {
         String text = line.text.trim();
 
-        if (text.length < 3) continue;
-        if (RegExp(r'^[\d\s\.\,\-\+\*\/\=\:\;\$\₹\%]+$').hasMatch(text)) continue;
+        if (text.length < 4) continue;
+        if (RegExp(r'^[\d\s\.\,\-\+\*\/\=\:\;\$\₹\%\@\#\(\)]+$').hasMatch(text)) continue;
+        if (RegExp(r'^\d{2}[\/\-]\d{2}[\/\-]\d{2,4}').hasMatch(text)) continue;
+        if (RegExp(r'^\d{1,2}:\d{2}').hasMatch(text)) continue;
+        if (RegExp(r'^[A-Z]{2,3}\d{2}[A-Z]\d{4}').hasMatch(text)) continue;
 
         final lowerText = text.toLowerCase();
         bool shouldSkip = skipPatterns.any((pattern) => lowerText.contains(pattern));
         if (shouldSkip) continue;
 
         final parsed = _parseLineForItem(text);
-        if (parsed != null) {
-          final normalizedName = parsed['name']!.toLowerCase();
+        if (parsed != null && _isLikelyProductItem(parsed['name']!)) {
+          final normalizedName = parsed['name']!.toLowerCase().trim();
           if (!addedNames.contains(normalizedName) && parsed['name']!.length >= 3) {
             addedNames.add(normalizedName);
             items.add(ScannedItem(
@@ -165,14 +180,83 @@ class ReceiptScannerService extends ChangeNotifier {
     return items;
   }
 
+  bool _isLikelyProductItem(String name) {
+    final lowerName = name.toLowerCase();
+    
+    if (name.length < 3 || name.length > 50) return false;
+    
+    final words = name.split(' ').where((w) => w.isNotEmpty).toList();
+    if (words.isEmpty) return false;
+    
+    if (words.length == 1 && words[0].length < 3) return false;
+    
+    if (RegExp(r'^\d+$').hasMatch(name)) return false;
+    
+    final productKeywords = [
+      'milk', 'bread', 'egg', 'cheese', 'butter', 'yogurt', 'curd', 'paneer',
+      'chicken', 'meat', 'fish', 'mutton', 'prawns',
+      'rice', 'wheat', 'flour', 'atta', 'maida', 'sooji', 'rava',
+      'dal', 'lentil', 'chana', 'moong', 'toor', 'masoor', 'rajma', 'chole',
+      'oil', 'ghee', 'coconut', 'sunflower', 'mustard', 'groundnut',
+      'sugar', 'salt', 'jaggery', 'honey',
+      'tea', 'coffee', 'biscuit', 'cookies', 'chips', 'namkeen', 'snack',
+      'juice', 'drink', 'soda', 'water', 'cola', 'pepsi', 'coke', 'sprite', 'fanta',
+      'soap', 'shampoo', 'toothpaste', 'brush', 'detergent', 'surf', 'tide', 'vim',
+      'noodles', 'maggi', 'pasta', 'macaroni', 'spaghetti',
+      'sauce', 'ketchup', 'pickle', 'chutney', 'jam',
+      'spice', 'masala', 'turmeric', 'haldi', 'chilli', 'mirchi', 'pepper', 'jeera', 'cumin',
+      'vegetable', 'fruit', 'tomato', 'potato', 'onion', 'garlic', 'ginger',
+      'apple', 'banana', 'orange', 'mango', 'grape', 'papaya', 'guava',
+      'carrot', 'cabbage', 'cauliflower', 'spinach', 'palak', 'beans', 'peas',
+      'chocolate', 'candy', 'toffee', 'sweet',
+      'cream', 'lotion', 'moisturizer', 'sunscreen', 'powder', 'talc',
+      'medicine', 'tablet', 'syrup', 'capsule', 'vitamin',
+      'pack', 'pouch', 'bottle', 'box', 'packet', 'bag', 'tin', 'jar',
+      'kg', 'gm', 'gram', 'ltr', 'litre', 'ml', 'pkt',
+    ];
+    
+    for (String keyword in productKeywords) {
+      if (lowerName.contains(keyword)) return true;
+    }
+    
+    if (RegExp(r'\d+\s*(kg|g|gm|gram|ml|l|ltr|litre|pcs|pc|pk|pack)\b', caseSensitive: false).hasMatch(lowerName)) {
+      return true;
+    }
+    
+    if (words.length >= 2 && words.length <= 5) {
+      final hasAlpha = words.any((w) => RegExp(r'^[a-zA-Z]+$').hasMatch(w) && w.length >= 3);
+      if (hasAlpha) return true;
+    }
+    
+    return false;
+  }
+
   Map<String, dynamic>? _parseLineForItem(String text) {
     text = text.replaceAll(RegExp(r'[^\w\s\d\.\,]'), ' ').trim();
 
-    final quantityMatch = RegExp(r'^(\d+)\s*[xX\*]?\s*(.+)').firstMatch(text);
+    final qtyItemPriceMatch = RegExp(r'^(\d+)\s*[xX\*]?\s*(.+?)\s+[\d\.\,]+\s*$').firstMatch(text);
+    if (qtyItemPriceMatch != null) {
+      final qty = int.tryParse(qtyItemPriceMatch.group(1)!) ?? 1;
+      final name = _cleanItemName(qtyItemPriceMatch.group(2)!);
+      if (name.isNotEmpty && qty > 0 && qty <= 100) {
+        return {'name': name, 'quantity': qty};
+      }
+    }
+
+    final itemPriceMatch = RegExp(r'^(.+?)\s+(\d+)\s*[xX\*]\s*[\d\.\,]+\s*$').firstMatch(text);
+    if (itemPriceMatch != null) {
+      final name = _cleanItemName(itemPriceMatch.group(1)!);
+      final qty = int.tryParse(itemPriceMatch.group(2)!) ?? 1;
+      if (name.isNotEmpty && qty > 0 && qty <= 100) {
+        return {'name': name, 'quantity': qty};
+      }
+    }
+
+    final quantityMatch = RegExp(r'^(\d+)\s*[xX\*]\s*(.+)').firstMatch(text);
     if (quantityMatch != null) {
       final qty = int.tryParse(quantityMatch.group(1)!) ?? 1;
       final name = _cleanItemName(quantityMatch.group(2)!);
-      if (name.isNotEmpty) {
+      if (name.isNotEmpty && qty > 0 && qty <= 100) {
         return {'name': name, 'quantity': qty};
       }
     }
@@ -185,30 +269,29 @@ class ReceiptScannerService extends ChangeNotifier {
       }
     }
 
-    final cleanedName = _cleanItemName(text);
-    if (cleanedName.isNotEmpty && cleanedName.length >= 3) {
-      return {'name': cleanedName, 'quantity': 1};
-    }
-
     return null;
   }
 
   String _cleanItemName(String name) {
     name = name.replaceAll(RegExp(r'\d+[\.\,]?\d*\s*$'), '').trim();
-    name = name.replaceAll(RegExp(r'^\d+\s*'), '').trim();
+    name = name.replaceAll(RegExp(r'^\d+\s*[xX\*]?\s*'), '').trim();
     name = name.replaceAll(RegExp(r'\s+'), ' ');
+    
+    name = name.replaceAll(RegExp(r'^[^a-zA-Z]+'), '');
+    name = name.replaceAll(RegExp(r'[^a-zA-Z0-9\s]+$'), '');
 
-    if (name.length > 50) {
-      name = name.substring(0, 50);
+    if (name.length > 40) {
+      name = name.substring(0, 40);
     }
 
-    final words = name.split(' ');
+    final words = name.split(' ').where((w) => w.isNotEmpty).toList();
     final capitalizedWords = words.map((word) {
       if (word.isEmpty) return word;
+      if (RegExp(r'^\d').hasMatch(word)) return word;
       return word[0].toUpperCase() + word.substring(1).toLowerCase();
     }).toList();
 
-    return capitalizedWords.join(' ');
+    return capitalizedWords.join(' ').trim();
   }
 
   ItemCategory _guessCategory(String name) {

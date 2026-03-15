@@ -15,6 +15,8 @@ class ItemModel {
   final String? location;
   final String? notes;
   final String? barcode;
+  final bool isDeleted;
+  final DateTime? deletedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -28,6 +30,8 @@ class ItemModel {
     this.location,
     this.notes,
     this.barcode,
+    this.isDeleted = false,
+    this.deletedAt,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
@@ -109,6 +113,8 @@ class ItemModel {
       'location': location,
       'notes': notes,
       'barcode': barcode,
+      'isDeleted': isDeleted,
+      'deletedAt': deletedAt?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -125,6 +131,8 @@ class ItemModel {
       location: map['location'],
       notes: map['notes'],
       barcode: map['barcode'],
+      isDeleted: map['isDeleted'] == true || map['isDeleted'] == 1,
+      deletedAt: map['deletedAt'] != null ? DateTime.parse(map['deletedAt']) : null,
       createdAt: DateTime.parse(map['createdAt']),
       updatedAt: DateTime.parse(map['updatedAt']),
     );
@@ -140,6 +148,8 @@ class ItemModel {
     String? location,
     String? notes,
     String? barcode,
+    bool? isDeleted,
+    DateTime? deletedAt,
   }) {
     return ItemModel(
       id: id ?? this.id,
@@ -151,6 +161,8 @@ class ItemModel {
       location: location ?? this.location,
       notes: notes ?? this.notes,
       barcode: barcode ?? this.barcode,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
     );

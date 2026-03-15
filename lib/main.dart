@@ -14,6 +14,7 @@ import 'features/analytics/screens/analytics_screen.dart';
 import 'features/deals/screens/deals_screen.dart';
 import 'features/add_item/screens/add_item_screen.dart';
 import 'features/scan_receipt/screens/scan_receipt_screen.dart';
+import 'features/trash/screens/trash_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,6 +51,7 @@ class ShelfTrackerApp extends StatelessWidget {
         '/home': (context) => const MainNavigation(),
         '/add-item': (context) => const AddItemScreen(),
         '/scan-receipt': (context) => const ScanReceiptScreen(),
+        '/trash': (context) => const TrashScreen(),
       },
     );
   }

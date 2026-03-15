@@ -21,7 +21,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -59,6 +59,8 @@ class DatabaseService {
         image_url TEXT,
         is_used INTEGER DEFAULT 0,
         used_date TEXT,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -143,7 +145,10 @@ class DatabaseService {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Handle future migrations here
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE items ADD COLUMN is_deleted INTEGER DEFAULT 0');
+      await db.execute('ALTER TABLE items ADD COLUMN deleted_at TEXT');
+    }
   }
 
   Future<void> close() async {
