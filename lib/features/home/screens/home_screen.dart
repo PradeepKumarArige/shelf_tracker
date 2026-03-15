@@ -5,11 +5,13 @@ import '../../../shared/widgets/item_card.dart';
 import '../../../shared/widgets/category_chip.dart';
 import '../../../shared/widgets/reminder_bottom_sheet.dart';
 import '../../../shared/widgets/medicine_reminder_bottom_sheet.dart';
+import '../../../shared/widgets/animated_list_item.dart';
 import '../../../shared/services/item_service.dart';
 import '../../../shared/services/medicine_reminder_service.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/theme/app_colors.dart';
 import '../widgets/expiring_soon_section.dart';
+import '../../add_item/screens/add_item_screen.dart';
 
 class NotificationBadge extends StatefulWidget {
   final Widget child;
@@ -48,21 +50,29 @@ class _NotificationBadgeState extends State<NotificationBadge> {
           Positioned(
             right: 0,
             top: 0,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.error,
-                shape: BoxShape.circle,
-              ),
-              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-              child: Text(
-                _count > 9 ? '9+' : '$_count',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.elasticOut,
+              builder: (context, value, child) {
+                return Transform.scale(scale: value, child: child);
+              },
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.error,
+                  shape: BoxShape.circle,
                 ),
-                textAlign: TextAlign.center,
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                child: Text(
+                  _count > 9 ? '9+' : '$_count',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
           ),
@@ -150,11 +160,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: padding.copyWith(top: 0),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
-                        (context, index) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: ItemCard(
-                            item: items[index],
-                            onTap: () => _showItemDetails(items[index], itemService),
+                        (context, index) => AnimatedListItem(
+                          index: index,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: ItemCard(
+                              item: items[index],
+                              onTap: () => _showItemDetails(items[index], itemService),
+                            ),
                           ),
                         ),
                         childCount: items.length,
@@ -173,29 +186,41 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildEmptyState() {
     final theme = Theme.of(context);
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.inventory_2_outlined,
-            size: 80,
-            color: theme.colorScheme.onSurface.withOpacity(0.3),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No items yet',
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.6),
+      child: FadeSlideTransition(
+        duration: const Duration(milliseconds: 600),
+        beginOffset: const Offset(0, 0.2),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.5, end: 1.0),
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.elasticOut,
+              builder: (context, value, child) {
+                return Transform.scale(scale: value, child: child);
+              },
+              child: Icon(
+                Icons.inventory_2_outlined,
+                size: 80,
+                color: theme.colorScheme.onSurface.withOpacity(0.3),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Add your first item to start tracking',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.5),
+            const SizedBox(height: 16),
+            Text(
+              'No items yet',
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.6),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Add your first item to start tracking',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.5),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -841,6 +866,12 @@ class _ItemDetailsSheet extends StatelessWidget {
                       child: ElevatedButton.icon(
                         onPressed: () {
                           Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AddItemScreen(itemToEdit: item),
+                            ),
+                          );
                         },
                         icon: const Icon(Icons.edit_rounded),
                         label: const Text('Edit'),

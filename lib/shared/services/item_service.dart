@@ -10,6 +10,7 @@ class ItemService extends ChangeNotifier {
   List<ItemModel> _items = [];
   List<ItemModel> _expiringSoon = [];
   List<ItemModel> _expiredItems = [];
+  List<ItemModel> _usedItems = [];
   List<ItemModel> _deletedItems = [];
   Map<String, int> _categoryStats = {};
   Map<String, dynamic> _analyticsStats = {};
@@ -22,6 +23,7 @@ class ItemService extends ChangeNotifier {
   List<ItemModel> get items => _items;
   List<ItemModel> get expiringSoon => _expiringSoon;
   List<ItemModel> get expiredItems => _expiredItems;
+  List<ItemModel> get usedItems => _usedItems;
   List<ItemModel> get deletedItems => _deletedItems;
   Map<String, int> get categoryStats => _categoryStats;
   Map<String, dynamic> get analyticsStats => _analyticsStats;
@@ -48,6 +50,51 @@ class ItemService extends ChangeNotifier {
     }
     
     return filtered;
+  }
+
+  /// Returns weekly activity data: items added per day (Mon-Sun) for the current week
+  Map<int, int> get weeklyActivity {
+    final now = DateTime.now();
+    // Get the start of the current week (Monday)
+    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    final startDate = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
+    
+    // Initialize counts for each day (0=Mon, 6=Sun)
+    final Map<int, int> dailyCounts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0};
+    
+    // Count items added this week
+    for (final item in _items) {
+      final itemDate = DateTime(item.createdAt.year, item.createdAt.month, item.createdAt.day);
+      if (itemDate.isAfter(startDate.subtract(const Duration(days: 1))) && 
+          itemDate.isBefore(startDate.add(const Duration(days: 7)))) {
+        final dayIndex = item.createdAt.weekday - 1; // 0=Mon, 6=Sun
+        dailyCounts[dayIndex] = (dailyCounts[dayIndex] ?? 0) + 1;
+      }
+    }
+    
+    // Also count used items this week
+    for (final item in _usedItems) {
+      if (item.deletedAt != null) {
+        final usedDate = DateTime(item.deletedAt!.year, item.deletedAt!.month, item.deletedAt!.day);
+        if (usedDate.isAfter(startDate.subtract(const Duration(days: 1))) && 
+            usedDate.isBefore(startDate.add(const Duration(days: 7)))) {
+          final dayIndex = item.deletedAt!.weekday - 1;
+          dailyCounts[dayIndex] = (dailyCounts[dayIndex] ?? 0) + 1;
+        }
+      }
+    }
+    
+    return dailyCounts;
+  }
+
+  /// Returns the maximum value in weekly activity for chart scaling
+  int get weeklyActivityMax {
+    final activity = weeklyActivity;
+    int max = 0;
+    for (final count in activity.values) {
+      if (count > max) max = count;
+    }
+    return max < 5 ? 5 : max + 2; // Minimum of 5, otherwise max + 2 for padding
   }
 
   Future<bool> _ensureUserInitialized() async {
@@ -87,6 +134,7 @@ class ItemService extends ChangeNotifier {
       _items = await _itemRepo.getAllItems(_userId!);
       _expiringSoon = await _itemRepo.getExpiringSoon(_userId!);
       _expiredItems = await _itemRepo.getExpiredItems(_userId!);
+      _usedItems = await _itemRepo.getUsedItems(_userId!);
       _deletedItems = await _itemRepo.getDeletedItems(_userId!);
       _categoryStats = await _itemRepo.getCategoryStats(_userId!);
       _analyticsStats = await _itemRepo.getAnalyticsStats(_userId!);

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/stat_card.dart';
 import '../../../shared/services/item_service.dart';
+import '../../../shared/models/item_model.dart';
 
 class AnalyticsScreen extends StatelessWidget {
   const AnalyticsScreen({super.key});
@@ -41,7 +43,7 @@ class AnalyticsScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   _buildCategoryChart(context, isDark, categoryStats),
                   const SizedBox(height: 24),
-                  _buildUsageChart(context, isDark),
+                  _buildUsageChart(context, isDark, itemService),
                   const SizedBox(height: 24),
                   _buildInsightsSection(context, isDark, itemService),
                 ],
@@ -76,6 +78,15 @@ class AnalyticsScreen extends StatelessWidget {
           value: '$totalItems',
           icon: Icons.inventory_2_rounded,
           color: isDark ? AppColors.primaryLight : AppColors.primary,
+          onTap: itemService.items.isNotEmpty
+              ? () => _showItemsSheet(
+                    context,
+                    'All Items',
+                    itemService.items,
+                    Icons.inventory_2_rounded,
+                    isDark ? AppColors.primaryLight : AppColors.primary,
+                  )
+              : null,
         ),
         StatCard(
           title: 'Used This Month',
@@ -83,20 +94,67 @@ class AnalyticsScreen extends StatelessWidget {
           icon: Icons.check_circle_rounded,
           color: isDark ? AppColors.foodDark : AppColors.foodLight,
           subtitle: usedThisMonth > 0 ? '+$usedThisMonth' : null,
+          onTap: itemService.usedItems.isNotEmpty
+              ? () => _showItemsSheet(
+                    context,
+                    'Used This Month',
+                    itemService.usedItems,
+                    Icons.check_circle_rounded,
+                    isDark ? AppColors.foodDark : AppColors.foodLight,
+                  )
+              : null,
         ),
         StatCard(
           title: 'Expired',
           value: '$expiredThisMonth',
           icon: Icons.error_rounded,
           color: isDark ? AppColors.expiredDark : AppColors.expiredLight,
+          onTap: itemService.expiredItems.isNotEmpty
+              ? () => _showItemsSheet(
+                    context,
+                    'Expired Items',
+                    itemService.expiredItems,
+                    Icons.error_rounded,
+                    isDark ? AppColors.expiredDark : AppColors.expiredLight,
+                  )
+              : null,
         ),
         StatCard(
           title: 'Expiring Soon',
           value: '${itemService.expiringSoon.length}',
           icon: Icons.warning_rounded,
           color: isDark ? AppColors.warningDark : AppColors.warningLight,
+          onTap: itemService.expiringSoon.isNotEmpty
+              ? () => _showItemsSheet(
+                    context,
+                    'Expiring Soon',
+                    itemService.expiringSoon,
+                    Icons.warning_rounded,
+                    isDark ? AppColors.warningDark : AppColors.warningLight,
+                  )
+              : null,
         ),
       ],
+    );
+  }
+
+  void _showItemsSheet(
+    BuildContext context,
+    String title,
+    List<ItemModel> items,
+    IconData icon,
+    Color color,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ItemsListSheet(
+        title: title,
+        items: items,
+        icon: icon,
+        color: color,
+      ),
     );
   }
 
@@ -265,8 +323,14 @@ class AnalyticsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildUsageChart(BuildContext context, bool isDark) {
+  Widget _buildUsageChart(BuildContext context, bool isDark, ItemService itemService) {
     final theme = Theme.of(context);
+    final weeklyActivity = itemService.weeklyActivity;
+    final maxY = itemService.weeklyActivityMax.toDouble();
+    final totalActivity = weeklyActivity.values.fold(0, (sum, count) => sum + count);
+
+    // Get current day of week (0=Mon, 6=Sun)
+    final today = DateTime.now().weekday - 1;
 
     return Card(
       child: Padding(
@@ -274,37 +338,66 @@ class AnalyticsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Weekly Activity',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Weekly Activity',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: (isDark ? AppColors.primaryLight : AppColors.primary).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$totalActivity items',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: isDark ? AppColors.primaryLight : AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             SizedBox(
               height: 200,
-              child: LineChart(
-                LineChartData(
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    horizontalInterval: 5,
-                    getDrawingHorizontalLine: (value) {
-                      return FlLine(
-                        color: theme.dividerColor,
-                        strokeWidth: 1,
-                      );
-                    },
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: maxY,
+                  barTouchData: BarTouchData(
+                    enabled: true,
+                    touchTooltipData: BarTouchTooltipData(
+                      tooltipBgColor: theme.cardColor,
+                      tooltipRoundedRadius: 8,
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                        return BarTooltipItem(
+                          '${days[group.x]}\n${rod.toY.toInt()} items',
+                          theme.textTheme.bodySmall!.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        );
+                      },
+                    ),
                   ),
                   titlesData: FlTitlesData(
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 30,
+                        interval: maxY > 10 ? (maxY / 5).ceilToDouble() : 1,
                         getTitlesWidget: (value, meta) {
                           return Text(
                             value.toInt().toString(),
-                            style: theme.textTheme.bodySmall,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withOpacity(0.5),
+                            ),
                           );
                         },
                       ),
@@ -312,14 +405,30 @@ class AnalyticsScreen extends StatelessWidget {
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
+                        reservedSize: 36,
                         getTitlesWidget: (value, meta) {
-                          const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                          if (value.toInt() < days.length) {
+                          const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+                          final isToday = value.toInt() == today;
+                          if (value.toInt() >= 0 && value.toInt() < days.length) {
                             return Padding(
                               padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                days[value.toInt()],
-                                style: theme.textTheme.bodySmall,
+                              child: Container(
+                                width: 24,
+                                height: 24,
+                                alignment: Alignment.center,
+                                decoration: isToday ? BoxDecoration(
+                                  color: (isDark ? AppColors.primaryLight : AppColors.primary),
+                                  borderRadius: BorderRadius.circular(12),
+                                ) : null,
+                                child: Text(
+                                  days[value.toInt()],
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
+                                    color: isToday 
+                                        ? Colors.white 
+                                        : theme.colorScheme.onSurface.withOpacity(0.7),
+                                  ),
+                                ),
                               ),
                             );
                           }
@@ -330,42 +439,61 @@ class AnalyticsScreen extends StatelessWidget {
                     topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   ),
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: maxY > 10 ? (maxY / 5).ceilToDouble() : 1,
+                    getDrawingHorizontalLine: (value) {
+                      return FlLine(
+                        color: theme.dividerColor.withOpacity(0.5),
+                        strokeWidth: 1,
+                        dashArray: [5, 5],
+                      );
+                    },
+                  ),
                   borderData: FlBorderData(show: false),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: const [
-                        FlSpot(0, 3),
-                        FlSpot(1, 5),
-                        FlSpot(2, 4),
-                        FlSpot(3, 8),
-                        FlSpot(4, 6),
-                        FlSpot(5, 10),
-                        FlSpot(6, 7),
+                  barGroups: List.generate(7, (index) {
+                    final count = weeklyActivity[index] ?? 0;
+                    final isToday = index == today;
+                    return BarChartGroupData(
+                      x: index,
+                      barRods: [
+                        BarChartRodData(
+                          toY: count.toDouble(),
+                          color: isToday
+                              ? (isDark ? AppColors.primaryLight : AppColors.primary)
+                              : (isDark ? AppColors.primaryLight : AppColors.primary).withOpacity(0.5),
+                          width: 28,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                          backDrawRodData: BackgroundBarChartRodData(
+                            show: true,
+                            toY: maxY,
+                            color: theme.dividerColor.withOpacity(0.2),
+                          ),
+                        ),
                       ],
-                      isCurved: true,
-                      color: isDark ? AppColors.primaryLight : AppColors.primary,
-                      barWidth: 3,
-                      dotData: FlDotData(
-                        show: true,
-                        getDotPainter: (spot, percent, barData, index) {
-                          return FlDotCirclePainter(
-                            radius: 4,
-                            color: Colors.white,
-                            strokeWidth: 2,
-                            strokeColor: isDark ? AppColors.primaryLight : AppColors.primary,
-                          );
-                        },
-                      ),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: (isDark ? AppColors.primaryLight : AppColors.primary).withOpacity(0.1),
-                      ),
-                    ),
-                  ],
-                  minY: 0,
-                  maxY: 15,
+                    );
+                  }),
                 ),
               ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 14,
+                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Items added & used this week',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -492,5 +620,235 @@ class AnalyticsScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _ItemsListSheet extends StatelessWidget {
+  final String title;
+  final List<ItemModel> items;
+  final IconData icon;
+  final Color color;
+
+  const _ItemsListSheet({
+    required this.title,
+    required this.items,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) {
+          return Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: theme.dividerColor,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(icon, color: color, size: 24),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                '${items.length} item${items.length != 1 ? 's' : ''}',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: color,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: items.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              icon,
+                              size: 64,
+                              color: theme.colorScheme.onSurface.withOpacity(0.2),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No items',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withOpacity(0.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: items.length,
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          return _buildItemTile(context, item, isDark);
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildItemTile(BuildContext context, ItemModel item, bool isDark) {
+    final theme = Theme.of(context);
+    final categoryColor = item.getCategoryColor(isDark);
+    final statusColor = item.getStatusColor(isDark);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: categoryColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                item.categoryIcon,
+                color: categoryColor,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.name,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today_rounded,
+                        size: 12,
+                        color: theme.colorScheme.onSurface.withOpacity(0.5),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        DateFormat('MMM d, y').format(item.expiryDate),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                      if (item.location != null) ...[
+                        const SizedBox(width: 12),
+                        Icon(
+                          Icons.location_on_rounded,
+                          size: 12,
+                          color: theme.colorScheme.onSurface.withOpacity(0.5),
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            item.location!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withOpacity(0.6),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                _getStatusText(item),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: statusColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getStatusText(ItemModel item) {
+    final days = item.daysRemaining;
+    if (days < 0) return 'Expired';
+    if (days == 0) return 'Today';
+    if (days == 1) return '1 day';
+    if (days <= 7) return '$days days';
+    return '${(days / 7).ceil()} weeks';
   }
 }

@@ -46,8 +46,22 @@ class ShelfTrackerApp extends StatelessWidget {
     return MaterialApp(
       title: 'Shelf Tracker',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme.copyWith(
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          },
+        ),
+      ),
+      darkTheme: AppTheme.darkTheme.copyWith(
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          },
+        ),
+      ),
       themeMode: themeService.themeMode,
       initialRoute: '/',
       routes: {
@@ -231,58 +245,75 @@ class _MainNavigationState extends State<MainNavigation> with WidgetsBindingObse
             ],
           ),
           floatingActionButton: _currentIndex == 0
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Consumer<VoiceAssistantService>(
-                      builder: (context, voiceService, child) {
-                        return FloatingActionButton.small(
-                          heroTag: 'voice_assistant',
-                          onPressed: () {
-                            voiceService.clearCommand();
-                            voiceService.clearError();
-                            setState(() => _showVoiceOverlay = true);
-                          },
-                          backgroundColor: voiceService.isListening
-                              ? Colors.red
-                              : Theme.of(context).colorScheme.secondary,
-                          child: Icon(
-                            voiceService.isListening ? Icons.mic : Icons.mic_none,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    FloatingActionButton.small(
-                      heroTag: 'scan_receipt',
-                      onPressed: () async {
-                        await Navigator.of(context).pushNamed('/scan-receipt');
-                        if (mounted) {
-                          context.read<ItemService>().loadItems();
-                        }
-                      },
-                      backgroundColor: Theme.of(context).colorScheme.tertiary,
-                      child: const Icon(
-                        Icons.receipt_long_rounded,
-                        color: Colors.white,
-                        size: 20,
+              ? TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value.clamp(0.0, 1.2),
+                      child: Transform.translate(
+                        offset: Offset(0, 20 * (1 - value).clamp(0.0, 1.0)),
+                        child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    FloatingActionButton.extended(
-                      heroTag: 'add_item',
-                      onPressed: () async {
-                        await Navigator.of(context).pushNamed('/add-item', arguments: null);
-                        if (mounted) {
-                          context.read<ItemService>().loadItems();
-                        }
-                      },
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('Add Item'),
-                    ),
-                  ],
+                    );
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Consumer<VoiceAssistantService>(
+                        builder: (context, voiceService, child) {
+                          return FloatingActionButton.small(
+                            heroTag: 'voice_assistant',
+                            onPressed: () {
+                              voiceService.clearCommand();
+                              voiceService.clearError();
+                              setState(() => _showVoiceOverlay = true);
+                            },
+                            backgroundColor: voiceService.isListening
+                                ? Colors.red
+                                : Theme.of(context).colorScheme.secondary,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 200),
+                              child: Icon(
+                                voiceService.isListening ? Icons.mic : Icons.mic_none,
+                                key: ValueKey(voiceService.isListening),
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      FloatingActionButton.small(
+                        heroTag: 'scan_receipt',
+                        onPressed: () async {
+                          await Navigator.of(context).pushNamed('/scan-receipt');
+                          if (mounted) {
+                            context.read<ItemService>().loadItems();
+                          }
+                        },
+                        backgroundColor: Theme.of(context).colorScheme.tertiary,
+                        child: const Icon(
+                          Icons.receipt_long_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      FloatingActionButton(
+                        heroTag: 'add_item',
+                        onPressed: () async {
+                          await Navigator.of(context).pushNamed('/add-item', arguments: null);
+                          if (mounted) {
+                            context.read<ItemService>().loadItems();
+                          }
+                        },
+                        child: const Icon(Icons.add_rounded),
+                      ),
+                    ],
+                  ),
                 )
               : null,
         ),

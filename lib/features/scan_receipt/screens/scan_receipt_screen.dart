@@ -91,7 +91,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
       );
 
       if (successCount > 0) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(true);
       }
     }
   }
