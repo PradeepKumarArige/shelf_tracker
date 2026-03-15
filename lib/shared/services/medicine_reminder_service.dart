@@ -109,6 +109,8 @@ class MedicineReminderService extends ChangeNotifier {
       
       debugPrint('Scheduling alarm: ${reminder.itemName} - ${schedule.label}');
       debugPrint('  Notification ID: $notificationId');
+      debugPrint('  Local timezone: ${tz.local}');
+      debugPrint('  Current local time: ${tz.TZDateTime.now(tz.local)}');
       debugPrint('  Scheduled for: $scheduledTime');
       
       await _notifications.zonedSchedule(
@@ -271,7 +273,10 @@ class MedicineReminderService extends ChangeNotifier {
   }
 
   Future<void> scheduleTestAlarm(String itemName) async {
-    final scheduledTime = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 30));
+    final now = tz.TZDateTime.now(tz.local);
+    final scheduledTime = now.add(const Duration(seconds: 30));
+    debugPrint('Current local time: $now');
+    debugPrint('Local timezone: ${tz.local}');
     debugPrint('Scheduling test alarm for: $scheduledTime');
     
     await _notifications.zonedSchedule(
