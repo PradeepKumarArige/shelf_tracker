@@ -1,16 +1,26 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/services/theme_service.dart';
 import '../../../shared/services/user_service.dart';
 import '../../../shared/services/item_service.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final ImagePicker _picker = ImagePicker();
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final themeService = context.watch<ThemeService>();
 
     return Consumer<UserService>(
@@ -25,7 +35,7 @@ class ProfileScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                _buildProfileHeader(context, user?.name ?? 'User', user?.email ?? ''),
+                _buildProfileHeader(context, userService, user?.name ?? 'User', user?.email ?? '', user?.avatarUrl),
                 const SizedBox(height: 24),
                 _buildSettingsSection(context, themeService, userService),
                 const SizedBox(height: 24),
@@ -42,7 +52,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileHeader(BuildContext context, String name, String email) {
+  Widget _buildProfileHeader(BuildContext context, UserService userService, String name, String email, String? avatarUrl) {
     final theme = Theme.of(context);
 
     return Card(
@@ -50,48 +60,59 @@ class ProfileScreen extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Stack(
-              children: [
-                Container(
-                  width: 96,
-                  height: 96,
-                  decoration: const BoxDecoration(
-                    gradient: AppColors.primaryGradient,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 40,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    width: 32,
-                    height: 32,
+            GestureDetector(
+              onTap: () => _showImagePickerOptions(context, userService),
+              child: Stack(
+                children: [
+                  Container(
+                    width: 96,
+                    height: 96,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
+                      gradient: avatarUrl == null ? AppColors.primaryGradient : null,
                       shape: BoxShape.circle,
-                      border: Border.all(
+                      image: avatarUrl != null
+                          ? DecorationImage(
+                              image: FileImage(File(avatarUrl)),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                    ),
+                    child: avatarUrl == null
+                        ? Center(
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 40,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          )
+                        : null,
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.colorScheme.primary,
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.camera_alt_rounded,
                         color: theme.colorScheme.primary,
-                        width: 2,
+                        size: 16,
                       ),
                     ),
-                    child: Icon(
-                      Icons.camera_alt_rounded,
-                      color: theme.colorScheme.primary,
-                      size: 16,
-                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -116,6 +137,191 @@ class ProfileScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _showImagePickerOptions(BuildContext context, UserService userService) {
+    final theme = Theme.of(context);
+    
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.dividerColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Change Profile Picture',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.camera_alt_rounded,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                title: const Text('Take Photo'),
+                subtitle: const Text('Use your camera'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera, userService);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.secondary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.photo_library_rounded,
+                    color: theme.colorScheme.secondary,
+                  ),
+                ),
+                title: const Text('Choose from Gallery'),
+                subtitle: const Text('Select an existing photo'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery, userService);
+                },
+              ),
+              if (userService.currentUser?.avatarUrl != null)
+                ListTile(
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.delete_rounded,
+                      color: Colors.red,
+                    ),
+                  ),
+                  title: const Text('Remove Photo'),
+                  subtitle: const Text('Use default avatar'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _removeProfilePicture(userService);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source, UserService userService) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        // Save to app's documents directory
+        final directory = await getApplicationDocumentsDirectory();
+        final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}${path.extension(pickedFile.path)}';
+        final savedPath = path.join(directory.path, fileName);
+        
+        // Copy file to permanent location
+        final File newImage = await File(pickedFile.path).copy(savedPath);
+        
+        // Delete old profile picture if exists
+        final oldAvatarUrl = userService.currentUser?.avatarUrl;
+        if (oldAvatarUrl != null) {
+          final oldFile = File(oldAvatarUrl);
+          if (await oldFile.exists()) {
+            await oldFile.delete();
+          }
+        }
+        
+        // Update user profile
+        await userService.updateProfile(avatarUrl: newImage.path);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Profile picture updated'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeProfilePicture(UserService userService) async {
+    try {
+      final oldAvatarUrl = userService.currentUser?.avatarUrl;
+      if (oldAvatarUrl != null) {
+        final oldFile = File(oldAvatarUrl);
+        if (await oldFile.exists()) {
+          await oldFile.delete();
+        }
+      }
+      
+      await userService.updateProfile(avatarUrl: '');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Profile picture removed'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildSettingsSection(

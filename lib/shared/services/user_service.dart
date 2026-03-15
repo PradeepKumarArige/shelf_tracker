@@ -37,10 +37,20 @@ class UserService extends ChangeNotifier {
     if (_currentUser == null) return 'User not initialized';
 
     try {
-      final updatedUser = _currentUser!.copyWith(
-        name: name,
-        email: email,
-        avatarUrl: avatarUrl,
+      // Handle empty string as null for avatarUrl (to clear the picture)
+      final newAvatarUrl = avatarUrl == '' ? null : (avatarUrl ?? _currentUser!.avatarUrl);
+      
+      final updatedUser = UserModel(
+        id: _currentUser!.id,
+        email: email ?? _currentUser!.email,
+        name: name ?? _currentUser!.name,
+        avatarUrl: newAvatarUrl,
+        notificationEnabled: _currentUser!.notificationEnabled,
+        emailAlertsEnabled: _currentUser!.emailAlertsEnabled,
+        dealNotificationsEnabled: _currentUser!.dealNotificationsEnabled,
+        defaultExpiryDays: _currentUser!.defaultExpiryDays,
+        language: _currentUser!.language,
+        createdAt: _currentUser!.createdAt,
       );
       
       await _userRepo.updateUser(updatedUser);
