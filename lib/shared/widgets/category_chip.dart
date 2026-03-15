@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/item_model.dart';
 
-class CategoryChip extends StatelessWidget {
+class CategoryChip extends StatefulWidget {
   final ItemCategory category;
   final bool isSelected;
   final VoidCallback? onTap;
@@ -14,48 +14,96 @@ class CategoryChip extends StatelessWidget {
   });
 
   @override
+  State<CategoryChip> createState() => _CategoryChipState();
+}
+
+class _CategoryChipState extends State<CategoryChip>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final color = _getCategoryColor(isDark);
 
     return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? color : color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isSelected ? color : color.withOpacity(0.3),
-            width: 1.5,
+      onTapDown: (_) => _controller.forward(),
+      onTapUp: (_) {
+        _controller.reverse();
+        widget.onTap?.call();
+      },
+      onTapCancel: () => _controller.reverse(),
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: widget.isSelected ? color : color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: widget.isSelected ? color : color.withOpacity(0.3),
+              width: 1.5,
+            ),
+            boxShadow: widget.isSelected
+                ? [
+                    BoxShadow(
+                      color: color.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _getCategoryIcon(),
-              size: 18,
-              color: isSelected ? Colors.white : color,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _getCategoryName(),
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: isSelected ? Colors.white : color,
-                fontWeight: FontWeight.w600,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedRotation(
+                turns: widget.isSelected ? 0.05 : 0,
+                duration: const Duration(milliseconds: 200),
+                child: Icon(
+                  _getCategoryIcon(),
+                  size: 18,
+                  color: widget.isSelected ? Colors.white : color,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Text(
+                _getCategoryName(),
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: widget.isSelected ? Colors.white : color,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Color _getCategoryColor(bool isDark) {
-    switch (category) {
+    switch (widget.category) {
       case ItemCategory.food:
         return isDark ? const Color(0xFF66BB6A) : const Color(0xFF4CAF50);
       case ItemCategory.grocery:
@@ -68,7 +116,7 @@ class CategoryChip extends StatelessWidget {
   }
 
   IconData _getCategoryIcon() {
-    switch (category) {
+    switch (widget.category) {
       case ItemCategory.food:
         return Icons.restaurant_rounded;
       case ItemCategory.grocery:
@@ -81,7 +129,7 @@ class CategoryChip extends StatelessWidget {
   }
 
   String _getCategoryName() {
-    switch (category) {
+    switch (widget.category) {
       case ItemCategory.food:
         return 'Food';
       case ItemCategory.grocery:
