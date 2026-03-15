@@ -11,6 +11,66 @@ import '../../../core/utils/responsive.dart';
 import '../../../core/theme/app_colors.dart';
 import '../widgets/expiring_soon_section.dart';
 
+class NotificationBadge extends StatefulWidget {
+  final Widget child;
+  
+  const NotificationBadge({super.key, required this.child});
+
+  @override
+  State<NotificationBadge> createState() => _NotificationBadgeState();
+}
+
+class _NotificationBadgeState extends State<NotificationBadge> {
+  final MedicineReminderService _reminderService = MedicineReminderService();
+  int _count = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCount();
+  }
+
+  Future<void> _loadCount() async {
+    await _reminderService.initialize();
+    if (mounted) {
+      setState(() {
+        _count = _reminderService.reminders.where((r) => r.isActive).length;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        widget.child,
+        if (_count > 0)
+          Positioned(
+            right: 0,
+            top: 0,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.error,
+                shape: BoxShape.circle,
+              ),
+              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+              child: Text(
+                _count > 9 ? '9+' : '$_count',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -273,9 +333,11 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.search_rounded),
             onPressed: () {},
           ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+          NotificationBadge(
+            child: IconButton(
+              icon: const Icon(Icons.notifications_outlined),
+              onPressed: () => Navigator.pushNamed(context, '/notifications'),
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -455,9 +517,11 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       centerTitle: false,
       actions: [
-        IconButton(
-          icon: const Icon(Icons.notifications_outlined),
-          onPressed: () {},
+        NotificationBadge(
+          child: IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () => Navigator.pushNamed(context, '/notifications'),
+          ),
         ),
         const SizedBox(width: 4),
       ],

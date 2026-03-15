@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -113,15 +114,19 @@ class MedicineReminderService extends ChangeNotifier {
         _nextInstanceOfTime(schedule.time),
         NotificationDetails(
           android: AndroidNotificationDetails(
-            'medicine_reminders',
-            'Medicine Reminders',
-            channelDescription: 'Daily medicine reminders',
+            'medicine_alarms',
+            'Medicine Alarms',
+            channelDescription: 'Daily medicine alarm reminders',
             importance: Importance.max,
             priority: Priority.high,
             icon: '@mipmap/ic_launcher',
             color: const Color(0xFF4CAF50),
             playSound: true,
             enableVibration: true,
+            vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
+            fullScreenIntent: true,
+            category: AndroidNotificationCategory.alarm,
+            audioAttributesUsage: AudioAttributesUsage.alarm,
             styleInformation: BigTextStyleInformation(
               'Time to take ${reminder.dosage} ${reminder.dosageUnit}${reminder.dosage > 1 ? 's' : ''} of ${reminder.itemName}.\n${schedule.label} - ${schedule.timeString}',
               contentTitle: 'Medicine Reminder 💊',
@@ -132,6 +137,7 @@ class MedicineReminderService extends ChangeNotifier {
             presentAlert: true,
             presentBadge: true,
             presentSound: true,
+            sound: 'default',
             subtitle: schedule.label,
           ),
         ),
@@ -231,23 +237,27 @@ class MedicineReminderService extends ChangeNotifier {
     await _notifications.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       'Test Medicine Reminder 💊',
-      'This is a test notification for $itemName. If you see this, alarms are working!',
-      const NotificationDetails(
+      'This is a test notification for $itemName. If you hear the alarm, it\'s working!',
+      NotificationDetails(
         android: AndroidNotificationDetails(
-          'medicine_reminders',
-          'Medicine Reminders',
-          channelDescription: 'Daily medicine reminders',
+          'medicine_alarms',
+          'Medicine Alarms',
+          channelDescription: 'Daily medicine alarm reminders',
           importance: Importance.max,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
-          color: Color(0xFF4CAF50),
+          color: const Color(0xFF4CAF50),
           playSound: true,
           enableVibration: true,
+          vibrationPattern: Int64List.fromList([0, 500, 200, 500]),
+          category: AndroidNotificationCategory.alarm,
+          audioAttributesUsage: AudioAttributesUsage.alarm,
         ),
-        iOS: DarwinNotificationDetails(
+        iOS: const DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
           presentSound: true,
+          sound: 'default',
         ),
       ),
     );
