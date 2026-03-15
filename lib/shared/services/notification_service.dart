@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 import '../models/item_model.dart';
@@ -42,14 +43,20 @@ class NotificationService {
   }
 
   Future<bool> requestPermissions() async {
-    final android = _notifications.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    // Request notification permission using permission_handler
+    final notificationStatus = await Permission.notification.request();
+    debugPrint('Notification permission status: $notificationStatus');
     
-    if (android != null) {
-      final granted = await android.requestNotificationsPermission();
-      return granted ?? false;
+    if (!notificationStatus.isGranted) {
+      debugPrint('Notification permission not granted');
+      return false;
     }
 
+    // Request exact alarm permission for Android 12+
+    final alarmStatus = await Permission.scheduleExactAlarm.request();
+    debugPrint('Exact alarm permission status: $alarmStatus');
+
+    // Also request through flutter_local_notifications for iOS
     final ios = _notifications.resolvePlatformSpecificImplementation<
         IOSFlutterLocalNotificationsPlugin>();
     
@@ -62,7 +69,17 @@ class NotificationService {
       return granted ?? false;
     }
 
-    return true;
+    return notificationStatus.isGranted;
+  }
+
+  Future<bool> areNotificationsEnabled() async {
+    final status = await Permission.notification.status;
+    debugPrint('Checking notification status: $status');
+    return status.isGranted;
+  }
+
+  Future<void> openNotificationSettings() async {
+    await openAppSettings();
   }
 
   Future<void> scheduleItemReminder({

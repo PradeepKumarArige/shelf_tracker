@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:uuid/uuid.dart';
 import '../models/medicine_reminder_model.dart';
+import 'notification_service.dart';
 
 class MedicineReminderService extends ChangeNotifier {
   static final MedicineReminderService _instance = MedicineReminderService._internal();
@@ -215,4 +216,40 @@ class MedicineReminderService extends ChangeNotifier {
     'spoon',
     'sachet',
   ];
+
+  Future<bool> requestNotificationPermissions() async {
+    final notificationService = NotificationService();
+    return await notificationService.requestPermissions();
+  }
+
+  Future<bool> areNotificationsEnabled() async {
+    final notificationService = NotificationService();
+    return await notificationService.areNotificationsEnabled();
+  }
+
+  Future<void> sendTestNotification(String itemName) async {
+    await _notifications.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      'Test Medicine Reminder 💊',
+      'This is a test notification for $itemName. If you see this, alarms are working!',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'medicine_reminders',
+          'Medicine Reminders',
+          channelDescription: 'Daily medicine reminders',
+          importance: Importance.max,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          color: Color(0xFF4CAF50),
+          playSound: true,
+          enableVibration: true,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+    );
+  }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/medicine_reminder_model.dart';
 import '../services/medicine_reminder_service.dart';
 
@@ -44,6 +45,7 @@ class _MedicineReminderBottomSheetState
   final MedicineReminderService _reminderService = MedicineReminderService();
   late MedicineReminder _reminder;
   bool _isLoading = false;
+  bool _notificationsEnabled = false;
 
   @override
   void initState() {
@@ -53,6 +55,60 @@ class _MedicineReminderBottomSheetState
           itemId: widget.itemId,
           itemName: widget.itemName,
         );
+    _checkNotificationPermissions();
+  }
+
+  Future<void> _checkNotificationPermissions() async {
+    final enabled = await _reminderService.areNotificationsEnabled();
+    setState(() {
+      _notificationsEnabled = enabled;
+    });
+  }
+
+  Future<void> _requestPermissions() async {
+    final granted = await _reminderService.requestNotificationPermissions();
+    setState(() {
+      _notificationsEnabled = granted;
+    });
+    if (granted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Notifications enabled!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else if (!granted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Permission denied. Please enable in Settings.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openSettings() async {
+    await openAppSettings();
+    // Check permission status after returning from settings
+    await Future.delayed(const Duration(milliseconds: 500));
+    await _checkNotificationPermissions();
+  }
+
+  Future<void> _sendTestNotification() async {
+    if (!_notificationsEnabled) {
+      await _requestPermissions();
+      if (!_notificationsEnabled) return;
+    }
+    
+    await _reminderService.sendTestNotification(widget.itemName);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Test notification sent! Check your notifications.'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
   }
 
   @override
@@ -115,12 +171,78 @@ class _MedicineReminderBottomSheetState
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            Text(
-              'Dosage',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
+            const SizedBox(height: 16),
+            if (!_notificationsEnabled)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.notifications_off, color: colorScheme.error),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Notifications disabled',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: colorScheme.onErrorContainer,
+                                ),
+                              ),
+                              Text(
+                                'Enable notifications to receive medicine alarms',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onErrorContainer.withOpacity(0.8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: _openSettings,
+                          child: const Text('Open Settings'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: _requestPermissions,
+                          child: const Text('Enable'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Dosage',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => _sendTestNotification(),
+                  icon: const Icon(Icons.notifications_active, size: 18),
+                  label: const Text('Test'),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Row(
@@ -450,6 +572,24 @@ class _MedicineReminderBottomSheetState
     setState(() => _isLoading = true);
 
     try {
+      // Request permissions first
+      if (!_notificationsEnabled) {
+        final granted = await _reminderService.requestNotificationPermissions();
+        if (!granted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please enable notifications to set alarms'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          setState(() => _isLoading = false);
+          return;
+        }
+        setState(() => _notificationsEnabled = true);
+      }
+
       if (widget.existingReminder != null) {
         await _reminderService.updateReminder(_reminder);
       } else {
