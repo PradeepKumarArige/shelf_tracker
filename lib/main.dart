@@ -13,6 +13,7 @@ import 'features/profile/screens/profile_screen.dart';
 import 'features/analytics/screens/analytics_screen.dart';
 import 'features/deals/screens/deals_screen.dart';
 import 'features/add_item/screens/add_item_screen.dart';
+import 'features/scan_receipt/screens/scan_receipt_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +49,7 @@ class ShelfTrackerApp extends StatelessWidget {
         '/': (context) => const SplashScreen(),
         '/home': (context) => const MainNavigation(),
         '/add-item': (context) => const AddItemScreen(),
+        '/scan-receipt': (context) => const ScanReceiptScreen(),
       },
     );
   }
@@ -220,7 +222,23 @@ class _MainNavigationState extends State<MainNavigation> {
                         );
                       },
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
+                    FloatingActionButton.small(
+                      heroTag: 'scan_receipt',
+                      onPressed: () async {
+                        await Navigator.of(context).pushNamed('/scan-receipt');
+                        if (mounted) {
+                          context.read<ItemService>().loadItems();
+                        }
+                      },
+                      backgroundColor: Theme.of(context).colorScheme.tertiary,
+                      child: const Icon(
+                        Icons.receipt_long_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     FloatingActionButton.extended(
                       heroTag: 'add_item',
                       onPressed: () async {
