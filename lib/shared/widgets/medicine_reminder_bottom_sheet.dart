@@ -111,6 +111,23 @@ class _MedicineReminderBottomSheetState
     }
   }
 
+  Future<void> _sendScheduledTestNotification() async {
+    if (!_notificationsEnabled) {
+      await _requestPermissions();
+      if (!_notificationsEnabled) return;
+    }
+    
+    await _reminderService.scheduleTestAlarm(widget.itemName);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Scheduled test alarm! Will arrive in 30 seconds.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -239,8 +256,13 @@ class _MedicineReminderBottomSheetState
                 ),
                 TextButton.icon(
                   onPressed: () => _sendTestNotification(),
-                  icon: const Icon(Icons.notifications_active, size: 18),
+                  icon: const Icon(Icons.notifications_active, size: 16),
                   label: const Text('Test'),
+                ),
+                TextButton.icon(
+                  onPressed: () => _sendScheduledTestNotification(),
+                  icon: const Icon(Icons.schedule, size: 16),
+                  label: const Text('30s'),
                 ),
               ],
             ),

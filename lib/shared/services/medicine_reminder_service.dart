@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -106,34 +105,30 @@ class MedicineReminderService extends ChangeNotifier {
       if (!schedule.isEnabled) continue;
 
       final notificationId = _generateNotificationId(reminder.id, i);
+      final scheduledTime = _nextInstanceOfTime(schedule.time);
+      
+      debugPrint('Scheduling alarm: ${reminder.itemName} - ${schedule.label}');
+      debugPrint('  Notification ID: $notificationId');
+      debugPrint('  Scheduled for: $scheduledTime');
       
       await _notifications.zonedSchedule(
         notificationId,
         'Medicine Reminder 💊',
         'Time to take ${reminder.dosage} ${reminder.dosageUnit}${reminder.dosage > 1 ? 's' : ''} of ${reminder.itemName} (${schedule.label})',
-        _nextInstanceOfTime(schedule.time),
+        scheduledTime,
         NotificationDetails(
-          android: AndroidNotificationDetails(
-            'medicine_alarms_v2',
-            'Medicine Alarms',
-            channelDescription: 'Daily medicine alarm reminders with sound',
+          android: const AndroidNotificationDetails(
+            'shelf_medicine_alerts',
+            'Medicine Alerts',
+            channelDescription: 'Medicine reminder alerts with sound',
             importance: Importance.max,
             priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
-            color: const Color(0xFF4CAF50),
             playSound: true,
-            sound: const UriAndroidNotificationSound('content://settings/system/alarm_alert'),
             enableVibration: true,
-            vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
             fullScreenIntent: true,
             category: AndroidNotificationCategory.alarm,
             audioAttributesUsage: AudioAttributesUsage.alarm,
-            channelShowBadge: true,
-            styleInformation: BigTextStyleInformation(
-              'Time to take ${reminder.dosage} ${reminder.dosageUnit}${reminder.dosage > 1 ? 's' : ''} of ${reminder.itemName}.\n${schedule.label} - ${schedule.timeString}',
-              contentTitle: 'Medicine Reminder 💊',
-              summaryText: reminder.itemName,
-            ),
+            visibility: NotificationVisibility.public,
           ),
           iOS: DarwinNotificationDetails(
             presentAlert: true,
@@ -149,6 +144,15 @@ class MedicineReminderService extends ChangeNotifier {
         matchDateTimeComponents: DateTimeComponents.time,
         payload: reminder.itemId,
       );
+      
+      debugPrint('  Alarm scheduled successfully!');
+    }
+    
+    // Log pending notifications
+    final pending = await _notifications.pendingNotificationRequests();
+    debugPrint('Total pending notifications: ${pending.length}');
+    for (final p in pending) {
+      debugPrint('  Pending: id=${p.id}, title=${p.title}');
     }
   }
 
@@ -236,26 +240,24 @@ class MedicineReminderService extends ChangeNotifier {
   }
 
   Future<void> sendTestNotification(String itemName) async {
+    debugPrint('Sending test notification for: $itemName');
     await _notifications.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       'Test Medicine Reminder 💊',
       'This is a test notification for $itemName. If you hear the alarm, it\'s working!',
       NotificationDetails(
-        android: AndroidNotificationDetails(
-          'medicine_alarms_v2',
-          'Medicine Alarms',
-          channelDescription: 'Daily medicine alarm reminders with sound',
+        android: const AndroidNotificationDetails(
+          'shelf_medicine_alerts',
+          'Medicine Alerts',
+          channelDescription: 'Medicine reminder alerts with sound',
           importance: Importance.max,
           priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
-          color: const Color(0xFF4CAF50),
           playSound: true,
-          sound: const UriAndroidNotificationSound('content://settings/system/alarm_alert'),
           enableVibration: true,
-          vibrationPattern: Int64List.fromList([0, 500, 200, 500]),
+          fullScreenIntent: true,
           category: AndroidNotificationCategory.alarm,
           audioAttributesUsage: AudioAttributesUsage.alarm,
-          channelShowBadge: true,
+          visibility: NotificationVisibility.public,
         ),
         iOS: const DarwinNotificationDetails(
           presentAlert: true,
@@ -265,5 +267,50 @@ class MedicineReminderService extends ChangeNotifier {
         ),
       ),
     );
+    debugPrint('Test notification sent!');
+  }
+
+  Future<void> scheduleTestAlarm(String itemName) async {
+    final scheduledTime = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 30));
+    debugPrint('Scheduling test alarm for: $scheduledTime');
+    
+    await _notifications.zonedSchedule(
+      99999,
+      'Test Scheduled Alarm 💊',
+      'This is a scheduled alarm test for $itemName - Should arrive 30 seconds after setting!',
+      scheduledTime,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'shelf_medicine_alerts',
+          'Medicine Alerts',
+          channelDescription: 'Medicine reminder alerts with sound',
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
+          fullScreenIntent: true,
+          category: AndroidNotificationCategory.alarm,
+          audioAttributesUsage: AudioAttributesUsage.alarm,
+          visibility: NotificationVisibility.public,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+          sound: 'default',
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
+    
+    debugPrint('Test alarm scheduled successfully!');
+    
+    final pending = await _notifications.pendingNotificationRequests();
+    debugPrint('Pending notifications after test: ${pending.length}');
+    for (final p in pending) {
+      debugPrint('  id=${p.id}, title=${p.title}');
+    }
   }
 }
