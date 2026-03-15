@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 import '../models/item_model.dart';
+import 'tts_service.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -12,7 +13,9 @@ class NotificationService {
   NotificationService._internal();
 
   final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  final TtsService _ttsService = TtsService();
   bool _isInitialized = false;
+  bool _voiceNotificationsEnabled = true;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -21,8 +24,23 @@ class NotificationService {
     
     // Get device timezone and set it as local
     try {
-      final String timeZoneName = await FlutterTimezone.getLocalTimezone();
+      String timeZoneName = await FlutterTimezone.getLocalTimezone();
       debugPrint('Device timezone: $timeZoneName');
+      
+      // Handle timezone name aliases (old names to new names)
+      final Map<String, String> timezoneAliases = {
+        'Asia/Calcutta': 'Asia/Kolkata',
+        'US/Eastern': 'America/New_York',
+        'US/Pacific': 'America/Los_Angeles',
+        'US/Central': 'America/Chicago',
+        'US/Mountain': 'America/Denver',
+      };
+      
+      if (timezoneAliases.containsKey(timeZoneName)) {
+        timeZoneName = timezoneAliases[timeZoneName]!;
+        debugPrint('Mapped timezone to: $timeZoneName');
+      }
+      
       tz.setLocalLocation(tz.getLocation(timeZoneName));
       debugPrint('Timezone set to: ${tz.local}');
     } catch (e) {
@@ -46,11 +64,83 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
+    // Initialize TTS service
+    await _ttsService.initialize();
+
     _isInitialized = true;
   }
 
   void _onNotificationTapped(NotificationResponse response) {
     debugPrint('Notification tapped: ${response.payload}');
+    
+    // Check if this is a medicine reminder notification and speak it
+    final notificationId = response.id;
+    final payload = response.payload;
+    
+    if (notificationId != null && payload != null) {
+      // Check the notification title/body from the response if available
+      // For medicine reminders, speak the content
+      _speakNotificationContent(response);
+    }
+  }
+
+  Future<void> _speakNotificationContent(NotificationResponse response) async {
+    if (!_voiceNotificationsEnabled) return;
+    
+    final payload = response.payload;
+    if (payload != null && payload.isNotEmpty) {
+      // Parse the payload: medicineName|dosage|dosageUnit|mealTime
+      final parts = payload.split('|');
+      if (parts.length >= 4) {
+        final medicineName = parts[0];
+        final dosage = int.tryParse(parts[1]) ?? 1;
+        final dosageUnit = parts[2];
+        final mealTime = parts[3];
+        
+        await _ttsService.speakMedicineReminder(
+          medicineName: medicineName,
+          dosage: dosage,
+          dosageUnit: dosageUnit,
+          mealTime: mealTime,
+        );
+      } else {
+        // Fallback for older format or item reminders
+        await _ttsService.speak('Reminder. Please check your notification for details.');
+      }
+    }
+  }
+
+  // Voice notification controls
+  bool get voiceNotificationsEnabled => _voiceNotificationsEnabled;
+  
+  void setVoiceNotificationsEnabled(bool enabled) {
+    _voiceNotificationsEnabled = enabled;
+  }
+
+  Future<void> speakNotification(String message) async {
+    if (_voiceNotificationsEnabled) {
+      await _ttsService.speak(message);
+    }
+  }
+
+  Future<void> speakMedicineReminder({
+    required String medicineName,
+    required int dosage,
+    required String dosageUnit,
+    String? mealTime,
+  }) async {
+    if (_voiceNotificationsEnabled) {
+      await _ttsService.speakMedicineReminder(
+        medicineName: medicineName,
+        dosage: dosage,
+        dosageUnit: dosageUnit,
+        mealTime: mealTime,
+      );
+    }
+  }
+
+  Future<void> stopSpeaking() async {
+    await _ttsService.stop();
   }
 
   Future<bool> requestPermissions() async {

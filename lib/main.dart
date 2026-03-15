@@ -8,6 +8,7 @@ import 'shared/services/user_service.dart';
 import 'shared/services/voice_assistant_service.dart';
 import 'shared/services/notification_service.dart';
 import 'shared/services/medicine_reminder_service.dart';
+import 'shared/services/background_alarm_service.dart';
 import 'shared/widgets/voice_assistant_widget.dart';
 import 'features/splash/screens/splash_screen.dart';
 import 'features/home/screens/home_screen.dart';
@@ -68,9 +69,10 @@ class MainNavigation extends StatefulWidget {
   State<MainNavigation> createState() => _MainNavigationState();
 }
 
-class _MainNavigationState extends State<MainNavigation> {
+class _MainNavigationState extends State<MainNavigation> with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _showVoiceOverlay = false;
+  late MedicineReminderService _medicineReminderService;
 
   final List<Widget> _screens = const [
     HomeScreen(),
@@ -82,9 +84,26 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _medicineReminderService = MedicineReminderService();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeServices();
     });
+  }
+  
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+  
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('App resumed from background/inactive - checking alarms');
+      _medicineReminderService.onAppResumed();
+    }
   }
 
   Future<void> _initializeServices() async {
@@ -101,6 +120,9 @@ class _MainNavigationState extends State<MainNavigation> {
     await voiceService.initialize();
     await notificationService.initialize();
     await medicineReminderService.initialize();
+    
+    final backgroundAlarmService = BackgroundAlarmService();
+    await backgroundAlarmService.initialize();
   }
 
   void _handleVoiceCommand(VoiceCommand command) {

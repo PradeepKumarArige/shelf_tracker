@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/medicine_reminder_model.dart';
 import '../services/medicine_reminder_service.dart';
+import '../services/notification_service.dart';
 
 class MedicineReminderBottomSheet extends StatefulWidget {
   final String itemId;
@@ -43,9 +44,11 @@ class MedicineReminderBottomSheet extends StatefulWidget {
 class _MedicineReminderBottomSheetState
     extends State<MedicineReminderBottomSheet> {
   final MedicineReminderService _reminderService = MedicineReminderService();
+  final NotificationService _notificationService = NotificationService();
   late MedicineReminder _reminder;
   bool _isLoading = false;
   bool _notificationsEnabled = false;
+  bool _voiceEnabled = true;
 
   @override
   void initState() {
@@ -56,6 +59,7 @@ class _MedicineReminderBottomSheetState
           itemName: widget.itemName,
         );
     _checkNotificationPermissions();
+    _voiceEnabled = _notificationService.voiceNotificationsEnabled;
   }
 
   Future<void> _checkNotificationPermissions() async {
@@ -100,7 +104,11 @@ class _MedicineReminderBottomSheetState
       if (!_notificationsEnabled) return;
     }
     
-    await _reminderService.sendTestNotification(widget.itemName);
+    await _reminderService.sendTestNotification(
+      widget.itemName,
+      dosage: _reminder.dosage,
+      dosageUnit: _reminder.dosageUnit,
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -111,13 +119,24 @@ class _MedicineReminderBottomSheetState
     }
   }
 
+  void _toggleVoice(bool value) {
+    setState(() {
+      _voiceEnabled = value;
+    });
+    _notificationService.setVoiceNotificationsEnabled(value);
+  }
+
   Future<void> _sendScheduledTestNotification() async {
     if (!_notificationsEnabled) {
       await _requestPermissions();
       if (!_notificationsEnabled) return;
     }
     
-    await _reminderService.scheduleTestAlarm(widget.itemName);
+    await _reminderService.scheduleTestAlarm(
+      widget.itemName,
+      dosage: _reminder.dosage,
+      dosageUnit: _reminder.dosageUnit,
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -358,6 +377,54 @@ class _MedicineReminderBottomSheetState
               final schedule = entry.value;
               return _buildScheduleCard(theme, colorScheme, schedule, index);
             }),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: _voiceEnabled 
+                    ? colorScheme.primaryContainer.withOpacity(0.2)
+                    : colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _voiceEnabled
+                      ? colorScheme.primary.withOpacity(0.3)
+                      : colorScheme.outline.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.record_voice_over,
+                    color: _voiceEnabled ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Voice Notification',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: _voiceEnabled ? colorScheme.onSurface : colorScheme.onSurface.withOpacity(0.5),
+                          ),
+                        ),
+                        Text(
+                          'Speak reminder aloud',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _voiceEnabled,
+                    onChanged: _toggleVoice,
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 24),
             Row(
               children: [
@@ -616,6 +683,16 @@ class _MedicineReminderBottomSheetState
         await _reminderService.updateReminder(_reminder);
       } else {
         await _reminderService.addReminder(_reminder);
+      }
+
+      // Speak confirmation if voice is enabled
+      if (_voiceEnabled) {
+        final enabledSchedules = _reminder.schedules.where((s) => s.isEnabled).toList();
+        final timesText = enabledSchedules.map((s) => s.label).join(', ');
+        await _notificationService.speakNotification(
+          'Medicine alarm ${widget.existingReminder != null ? 'updated' : 'set'} for ${widget.itemName}. '
+          'You will be reminded at $timesText.',
+        );
       }
 
       if (mounted) {
