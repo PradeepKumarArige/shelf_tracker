@@ -30,7 +30,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
   }
 
   Future<void> _captureReceipt() async {
-    final success = await _scannerService.captureReceipt();
+    final success = await _scannerService.captureReceipt(context);
     if (mounted) {
       setState(() => _isInitialized = true);
       if (!success && _scannerService.error != null) {
@@ -40,7 +40,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
   }
 
   Future<void> _pickFromGallery() async {
-    final success = await _scannerService.pickReceiptFromGallery();
+    final success = await _scannerService.pickReceiptFromGallery(context);
     if (mounted) {
       setState(() => _isInitialized = true);
       if (!success && _scannerService.error != null) {
@@ -128,6 +128,105 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
             child: const Text('Add'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showRawTextDialog() {
+    final rawText = _scannerService.rawText;
+    final lines = rawText.split('\n').where((l) => l.trim().isNotEmpty).toList();
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Scanned Text (${lines.length} lines)',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                'Tap on any line to add it as an item',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: lines.length,
+                itemBuilder: (context, index) {
+                  final line = lines[index].trim();
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                      line,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    leading: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                        fontSize: 12,
+                      ),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.add_circle_outline, size: 20),
+                      onPressed: () {
+                        setState(() {
+                          _scannerService.addManualItem(line);
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Added: $line'),
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                    ),
+                    onTap: () {
+                      setState(() {
+                        _scannerService.addManualItem(line);
+                      });
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Added: $line'),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -310,6 +409,13 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
       appBar: AppBar(
         title: const Text('Scan Receipt'),
         actions: [
+          if (_isInitialized && _scannerService.rawText.isNotEmpty) ...[
+            IconButton(
+              onPressed: () => _showRawTextDialog(),
+              icon: const Icon(Icons.text_snippet_outlined),
+              tooltip: 'View scanned text',
+            ),
+          ],
           if (_scannerService.scannedItems.isNotEmpty) ...[
             TextButton.icon(
               onPressed: () {

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:uuid/uuid.dart';
 import '../models/item_model.dart';
 
@@ -54,18 +55,21 @@ class ReceiptScannerService extends ChangeNotifier {
 
   int get selectedCount => _scannedItems.where((item) => item.isSelected).length;
 
-  Future<bool> captureReceipt() async {
+  Future<bool> captureReceipt(BuildContext context) async {
     try {
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.camera,
-        maxWidth: 1800,
-        maxHeight: 1800,
-        imageQuality: 85,
+        maxWidth: 2000,
+        maxHeight: 2000,
+        imageQuality: 90,
       );
 
       if (image == null) return false;
 
-      _selectedImage = File(image.path);
+      final croppedFile = await _cropImage(image.path, context);
+      if (croppedFile == null) return false;
+
+      _selectedImage = File(croppedFile.path);
       notifyListeners();
 
       return await _processImage(_selectedImage!);
@@ -76,18 +80,21 @@ class ReceiptScannerService extends ChangeNotifier {
     }
   }
 
-  Future<bool> pickReceiptFromGallery() async {
+  Future<bool> pickReceiptFromGallery(BuildContext context) async {
     try {
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1800,
-        maxHeight: 1800,
-        imageQuality: 85,
+        maxWidth: 2000,
+        maxHeight: 2000,
+        imageQuality: 90,
       );
 
       if (image == null) return false;
 
-      _selectedImage = File(image.path);
+      final croppedFile = await _cropImage(image.path, context);
+      if (croppedFile == null) return false;
+
+      _selectedImage = File(croppedFile.path);
       notifyListeners();
 
       return await _processImage(_selectedImage!);
@@ -96,6 +103,37 @@ class ReceiptScannerService extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  Future<CroppedFile?> _cropImage(String imagePath, BuildContext context) async {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    return await ImageCropper().cropImage(
+      sourcePath: imagePath,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop Receipt',
+          toolbarColor: colorScheme.primary,
+          toolbarWidgetColor: colorScheme.onPrimary,
+          activeControlsWidgetColor: colorScheme.primary,
+          backgroundColor: colorScheme.surface,
+          initAspectRatio: CropAspectRatioPreset.original,
+          lockAspectRatio: false,
+          hideBottomControls: false,
+        ),
+        IOSUiSettings(
+          title: 'Crop Receipt',
+          doneButtonTitle: 'Done',
+          cancelButtonTitle: 'Cancel',
+          aspectRatioLockEnabled: false,
+          resetAspectRatioEnabled: true,
+          aspectRatioPickerButtonHidden: false,
+          rotateButtonsHidden: false,
+          rotateClockwiseButtonHidden: true,
+        ),
+      ],
+    );
   }
 
   Future<bool> _processImage(File imageFile) async {
@@ -126,52 +164,53 @@ class ReceiptScannerService extends ChangeNotifier {
     final List<ScannedItem> items = [];
     final Set<String> addedNames = {};
 
-    final List<String> skipPatterns = [
-      'total', 'subtotal', 'sub total', 'grand total', 'net total',
-      'tax', 'vat', 'gst', 'cgst', 'sgst', 'igst', 'cess',
-      'cash', 'card', 'change', 'balance', 'tender', 'paid', 'due',
-      'thank', 'thanks', 'receipt', 'invoice', 'bill',
-      'date', 'time', 'store', 'shop', 'mart', 'address', 'phone', 'tel', 'mobile',
-      'qty', 'price', 'amount', 'discount', 'savings', 'save', 'offer',
-      'payment', 'mode', 'method',
-      'visa', 'mastercard', 'debit', 'credit', 'upi', 'paytm', 'gpay', 'phonepe',
-      'transaction', 'txn', 'ref', 'reference',
-      'welcome', 'visit', 'again', 'come', 'customer', 'member', 'loyalty',
-      'no.', 'sr.', 'sl.', 'sno', 's.no', 'item code', 'barcode', 'sku',
-      'mrp', 'rate', 'unit', 'per', 'each', 'pcs',
-      'cashier', 'counter', 'terminal', 'pos',
-      'return', 'refund', 'exchange', 'policy',
-      'gstin', 'tin', 'cin', 'fssai', 'lic',
-      'packed', 'mfg', 'exp', 'batch', 'lot',
-      'www', 'http', '.com', '.in', 'email',
-      'round', 'rounding', 'adjust',
+    final List<String> skipWords = [
+      'total', 'subtotal', 'grand', 'net',
+      'tax', 'vat', 'gst', 'cgst', 'sgst',
+      'cash', 'card', 'change', 'balance', 'tender', 'paid',
+      'thank', 'thanks', 'receipt', 'invoice',
+      'welcome', 'visit', 'again',
+      'cashier', 'counter', 'terminal',
+      'gstin', 'fssai',
+      'www', 'http',
     ];
 
     for (TextBlock block in recognizedText.blocks) {
       for (TextLine line in block.lines) {
         String text = line.text.trim();
 
-        if (text.length < 4) continue;
+        if (text.length < 3) continue;
         if (RegExp(r'^[\d\s\.\,\-\+\*\/\=\:\;\$\₹\%\@\#\(\)]+$').hasMatch(text)) continue;
         if (RegExp(r'^\d{2}[\/\-]\d{2}[\/\-]\d{2,4}').hasMatch(text)) continue;
         if (RegExp(r'^\d{1,2}:\d{2}').hasMatch(text)) continue;
-        if (RegExp(r'^[A-Z]{2,3}\d{2}[A-Z]\d{4}').hasMatch(text)) continue;
 
         final lowerText = text.toLowerCase();
-        bool shouldSkip = skipPatterns.any((pattern) => lowerText.contains(pattern));
+        
+        bool shouldSkip = false;
+        for (final word in skipWords) {
+          if (lowerText == word || lowerText.startsWith('$word ') || lowerText.startsWith('$word:')) {
+            shouldSkip = true;
+            break;
+          }
+        }
         if (shouldSkip) continue;
+        if (lowerText.contains('total') && RegExp(r'\d').hasMatch(text)) continue;
 
         final parsed = _parseLineForItem(text);
-        if (parsed != null && _isLikelyProductItem(parsed['name']!)) {
-          final normalizedName = parsed['name']!.toLowerCase().trim();
-          if (!addedNames.contains(normalizedName) && parsed['name']!.length >= 3) {
-            addedNames.add(normalizedName);
-            items.add(ScannedItem(
-              id: const Uuid().v4(),
-              name: parsed['name']!,
-              quantity: parsed['quantity'] ?? 1,
-              category: _guessCategory(parsed['name']!),
-            ));
+        if (parsed != null) {
+          final name = parsed['name'] as String;
+          final normalizedName = name.toLowerCase().trim();
+          
+          if (name.length >= 2 && !addedNames.contains(normalizedName)) {
+            if (!_isNonProductText(name)) {
+              addedNames.add(normalizedName);
+              items.add(ScannedItem(
+                id: const Uuid().v4(),
+                name: name,
+                quantity: parsed['quantity'] ?? 1,
+                category: _guessCategory(name),
+              ));
+            }
           }
         }
       }
@@ -180,92 +219,71 @@ class ReceiptScannerService extends ChangeNotifier {
     return items;
   }
 
-  bool _isLikelyProductItem(String name) {
+  bool _isNonProductText(String name) {
     final lowerName = name.toLowerCase();
     
-    if (name.length < 3 || name.length > 50) return false;
-    
-    final words = name.split(' ').where((w) => w.isNotEmpty).toList();
-    if (words.isEmpty) return false;
-    
-    if (words.length == 1 && words[0].length < 3) return false;
-    
-    if (RegExp(r'^\d+$').hasMatch(name)) return false;
-    
-    final productKeywords = [
-      'milk', 'bread', 'egg', 'cheese', 'butter', 'yogurt', 'curd', 'paneer',
-      'chicken', 'meat', 'fish', 'mutton', 'prawns',
-      'rice', 'wheat', 'flour', 'atta', 'maida', 'sooji', 'rava',
-      'dal', 'lentil', 'chana', 'moong', 'toor', 'masoor', 'rajma', 'chole',
-      'oil', 'ghee', 'coconut', 'sunflower', 'mustard', 'groundnut',
-      'sugar', 'salt', 'jaggery', 'honey',
-      'tea', 'coffee', 'biscuit', 'cookies', 'chips', 'namkeen', 'snack',
-      'juice', 'drink', 'soda', 'water', 'cola', 'pepsi', 'coke', 'sprite', 'fanta',
-      'soap', 'shampoo', 'toothpaste', 'brush', 'detergent', 'surf', 'tide', 'vim',
-      'noodles', 'maggi', 'pasta', 'macaroni', 'spaghetti',
-      'sauce', 'ketchup', 'pickle', 'chutney', 'jam',
-      'spice', 'masala', 'turmeric', 'haldi', 'chilli', 'mirchi', 'pepper', 'jeera', 'cumin',
-      'vegetable', 'fruit', 'tomato', 'potato', 'onion', 'garlic', 'ginger',
-      'apple', 'banana', 'orange', 'mango', 'grape', 'papaya', 'guava',
-      'carrot', 'cabbage', 'cauliflower', 'spinach', 'palak', 'beans', 'peas',
-      'chocolate', 'candy', 'toffee', 'sweet',
-      'cream', 'lotion', 'moisturizer', 'sunscreen', 'powder', 'talc',
-      'medicine', 'tablet', 'syrup', 'capsule', 'vitamin',
-      'pack', 'pouch', 'bottle', 'box', 'packet', 'bag', 'tin', 'jar',
-      'kg', 'gm', 'gram', 'ltr', 'litre', 'ml', 'pkt',
+    final nonProductPatterns = [
+      'thank', 'welcome', 'visit', 'come again',
+      'cashier', 'counter', 'terminal', 'pos',
+      'address', 'phone', 'mobile', 'email',
+      'gstin', 'fssai', 'license',
+      'payment', 'paid', 'change', 'balance',
     ];
     
-    for (String keyword in productKeywords) {
-      if (lowerName.contains(keyword)) return true;
+    for (final pattern in nonProductPatterns) {
+      if (lowerName.contains(pattern)) return true;
     }
     
-    if (RegExp(r'\d+\s*(kg|g|gm|gram|ml|l|ltr|litre|pcs|pc|pk|pack)\b', caseSensitive: false).hasMatch(lowerName)) {
-      return true;
-    }
-    
-    if (words.length >= 2 && words.length <= 5) {
-      final hasAlpha = words.any((w) => RegExp(r'^[a-zA-Z]+$').hasMatch(w) && w.length >= 3);
-      if (hasAlpha) return true;
-    }
+    if (RegExp(r'^\d{10,}$').hasMatch(name.replaceAll(' ', ''))) return true;
     
     return false;
   }
 
   Map<String, dynamic>? _parseLineForItem(String text) {
-    text = text.replaceAll(RegExp(r'[^\w\s\d\.\,]'), ' ').trim();
+    text = text.replaceAll(RegExp(r'[^\w\s\d\.\,\-]'), ' ').trim();
+    text = text.replaceAll(RegExp(r'\s+'), ' ');
 
-    final qtyItemPriceMatch = RegExp(r'^(\d+)\s*[xX\*]?\s*(.+?)\s+[\d\.\,]+\s*$').firstMatch(text);
-    if (qtyItemPriceMatch != null) {
-      final qty = int.tryParse(qtyItemPriceMatch.group(1)!) ?? 1;
-      final name = _cleanItemName(qtyItemPriceMatch.group(2)!);
-      if (name.isNotEmpty && qty > 0 && qty <= 100) {
-        return {'name': name, 'quantity': qty};
+    final qtyAtStart = RegExp(r'^(\d{1,2})\s*[xX\*]?\s+(.+)').firstMatch(text);
+    if (qtyAtStart != null) {
+      final qty = int.tryParse(qtyAtStart.group(1)!) ?? 1;
+      if (qty > 0 && qty <= 50) {
+        final rest = qtyAtStart.group(2)!;
+        final name = _cleanItemName(rest);
+        if (name.isNotEmpty) {
+          return {'name': name, 'quantity': qty};
+        }
       }
     }
 
-    final itemPriceMatch = RegExp(r'^(.+?)\s+(\d+)\s*[xX\*]\s*[\d\.\,]+\s*$').firstMatch(text);
-    if (itemPriceMatch != null) {
-      final name = _cleanItemName(itemPriceMatch.group(1)!);
-      final qty = int.tryParse(itemPriceMatch.group(2)!) ?? 1;
-      if (name.isNotEmpty && qty > 0 && qty <= 100) {
-        return {'name': name, 'quantity': qty};
-      }
-    }
-
-    final quantityMatch = RegExp(r'^(\d+)\s*[xX\*]\s*(.+)').firstMatch(text);
-    if (quantityMatch != null) {
-      final qty = int.tryParse(quantityMatch.group(1)!) ?? 1;
-      final name = _cleanItemName(quantityMatch.group(2)!);
-      if (name.isNotEmpty && qty > 0 && qty <= 100) {
-        return {'name': name, 'quantity': qty};
-      }
-    }
-
-    final priceMatch = RegExp(r'^(.+?)\s+[\d\.\,]+\s*$').firstMatch(text);
-    if (priceMatch != null) {
-      final name = _cleanItemName(priceMatch.group(1)!);
+    final itemWithPrice = RegExp(r'^(.+?)\s+[\d\.\,]{1,10}$').firstMatch(text);
+    if (itemWithPrice != null) {
+      final name = _cleanItemName(itemWithPrice.group(1)!);
       if (name.isNotEmpty) {
+        final qtyInName = RegExp(r'^(\d{1,2})\s*[xX\*]?\s+(.+)').firstMatch(name);
+        if (qtyInName != null) {
+          final qty = int.tryParse(qtyInName.group(1)!) ?? 1;
+          final cleanName = _cleanItemName(qtyInName.group(2)!);
+          if (cleanName.isNotEmpty && qty > 0 && qty <= 50) {
+            return {'name': cleanName, 'quantity': qty};
+          }
+        }
         return {'name': name, 'quantity': 1};
+      }
+    }
+
+    final multiPrice = RegExp(r'^(.+?)\s+(\d{1,2})\s*[xX\*@]\s*[\d\.\,]+').firstMatch(text);
+    if (multiPrice != null) {
+      final name = _cleanItemName(multiPrice.group(1)!);
+      final qty = int.tryParse(multiPrice.group(2)!) ?? 1;
+      if (name.isNotEmpty && qty > 0 && qty <= 50) {
+        return {'name': name, 'quantity': qty};
+      }
+    }
+
+    final cleanedText = _cleanItemName(text);
+    if (cleanedText.isNotEmpty && cleanedText.length >= 2) {
+      if (RegExp(r'[a-zA-Z]{2,}').hasMatch(cleanedText)) {
+        return {'name': cleanedText, 'quantity': 1};
       }
     }
 
@@ -273,15 +291,17 @@ class ReceiptScannerService extends ChangeNotifier {
   }
 
   String _cleanItemName(String name) {
-    name = name.replaceAll(RegExp(r'\d+[\.\,]?\d*\s*$'), '').trim();
-    name = name.replaceAll(RegExp(r'^\d+\s*[xX\*]?\s*'), '').trim();
+    name = name.replaceAll(RegExp(r'[\d\.\,]+\s*$'), '').trim();
+    
+    name = name.replaceAll(RegExp(r'^\d+\s*[xX\*@]?\s*'), '').trim();
+    
     name = name.replaceAll(RegExp(r'\s+'), ' ');
     
     name = name.replaceAll(RegExp(r'^[^a-zA-Z]+'), '');
-    name = name.replaceAll(RegExp(r'[^a-zA-Z0-9\s]+$'), '');
+    name = name.replaceAll(RegExp(r'[^a-zA-Z0-9\s\-]+$'), '');
 
-    if (name.length > 40) {
-      name = name.substring(0, 40);
+    if (name.length > 50) {
+      name = name.substring(0, 50);
     }
 
     final words = name.split(' ').where((w) => w.isNotEmpty).toList();

@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 import '../../../shared/models/item_model.dart';
 import '../../../shared/widgets/item_card.dart';
 import '../../../shared/widgets/category_chip.dart';
+import '../../../shared/widgets/reminder_bottom_sheet.dart';
+import '../../../shared/widgets/medicine_reminder_bottom_sheet.dart';
 import '../../../shared/services/item_service.dart';
+import '../../../shared/services/medicine_reminder_service.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/theme/app_colors.dart';
 import '../widgets/expiring_soon_section.dart';
@@ -726,6 +729,48 @@ class _ItemDetailsSheet extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 24),
+                if (item.category == ItemCategory.medicine) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        final reminderService = MedicineReminderService();
+                        final existingReminders = reminderService.getRemindersForItem(item.id);
+                        MedicineReminderBottomSheet.show(
+                          context,
+                          itemId: item.id,
+                          itemName: item.name,
+                          existingReminder: existingReminders.isNotEmpty ? existingReminders.first : null,
+                        );
+                      },
+                      icon: const Icon(Icons.alarm),
+                      label: const Text('Set Medicine Alarm'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: item.category == ItemCategory.medicine
+                      ? OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            ReminderBottomSheet.show(context, item);
+                          },
+                          icon: const Icon(Icons.notifications_active),
+                          label: const Text('Set Expiry Reminder'),
+                        )
+                      : FilledButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            ReminderBottomSheet.show(context, item);
+                          },
+                          icon: const Icon(Icons.notifications_active),
+                          label: const Text('Set Reminder'),
+                        ),
+                ),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(

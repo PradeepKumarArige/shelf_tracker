@@ -6,6 +6,8 @@ import 'shared/services/item_service.dart';
 import 'shared/services/deal_service.dart';
 import 'shared/services/user_service.dart';
 import 'shared/services/voice_assistant_service.dart';
+import 'shared/services/notification_service.dart';
+import 'shared/services/medicine_reminder_service.dart';
 import 'shared/widgets/voice_assistant_widget.dart';
 import 'features/splash/screens/splash_screen.dart';
 import 'features/home/screens/home_screen.dart';
@@ -88,11 +90,15 @@ class _MainNavigationState extends State<MainNavigation> {
     final itemService = context.read<ItemService>();
     final dealService = context.read<DealService>();
     final voiceService = context.read<VoiceAssistantService>();
+    final notificationService = NotificationService();
+    final medicineReminderService = MedicineReminderService();
 
     await userService.initialize();
     await itemService.initialize();
     await dealService.initialize();
     await voiceService.initialize();
+    await notificationService.initialize();
+    await medicineReminderService.initialize();
   }
 
   void _handleVoiceCommand(VoiceCommand command) {
